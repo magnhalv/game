@@ -50,6 +50,7 @@ internal void win32_loadXinput(void) {
 
 global_variable win32_offscreen_buffer global_back_buffer;
 global_variable bool Running;
+global_variable int xOffset, yOffset;
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -70,16 +71,16 @@ internal win32_window_dimension win32_get_window_dimension(HWND window_handle) {
   return result;
 }
 
-internal void renderGradient(win32_offscreen_buffer buffer, int xOffset, int yOffset) {
-  uint8 *row = (uint8 *)buffer.Memory;
-  for (int y = 0; y < buffer.Height; y++) {
+internal void renderGradient(win32_offscreen_buffer *buffer, int xOffset, int yOffset) {
+  uint8 *row = (uint8 *)buffer->Memory;
+  for (int y = 0; y < buffer->Height; y++) {
     uint32 *pixel = (uint32*)row;
-    for (int x = 0; x < buffer.Width; x++) {
+    for (int x = 0; x < buffer->Width; x++) {
       uint8 blue = (x + xOffset);
       uint8 green = (y + yOffset);
       *pixel++ = ((green << 8) | blue);
     }
-    row += buffer.Pitch;
+    row += buffer->Pitch;
   }
 }
 
@@ -108,7 +109,7 @@ win32_ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height) {
   buffer->Pitch = buffer->Width*buffer->BytesPerPixel;
 
 
-  renderGradient(*buffer, 0, 0);
+  renderGradient(buffer, 0, 0);
 }
 
 internal void
@@ -148,6 +149,42 @@ internal LRESULT CALLBACK WindowProcCallback(HWND window,
   case WM_ACTIVATEAPP:
     OutputDebugStringA("WM_ACTIVATEAPP\n");
     break;
+
+  case WM_SYSKEYDOWN:
+  case WM_SYSKEYUP:
+  case WM_KEYDOWN:
+  case WM_KEYUP:
+    {
+      uint32 VKCode = wParam;
+      bool wasDown = (lParam & (1 << 30)) != 0;
+      bool isDown = (lParam & (1 << 31)) == 0;
+      if (VKCode == 'W') {
+      }
+      else if (VKCode == 'A') {
+      }
+      else if (VKCode == 'S') {
+      }
+      else if (VKCode == 'D') {
+      }
+      else if (VKCode == VK_UP) {
+        yOffset += 5;
+      }
+      else if (VKCode == VK_DOWN) {
+        yOffset -= 5;
+      }
+      else if (VKCode == VK_RIGHT) {
+        xOffset -= 5;
+      }
+      else if (VKCode == VK_LEFT) {
+        xOffset += 5;
+      }
+      else if (VKCode == VK_ESCAPE) {
+        Running = false;
+      }
+      else if (VKCode == VK_SPACE) {
+      }
+    }
+    break;
   case WM_PAINT: {
     PAINTSTRUCT paint;
     HDC deviceContext = BeginPaint(window,&paint);
@@ -185,7 +222,7 @@ internal int CALLBACK WinMain(HINSTANCE instance,
 {
 
   WNDCLASS windowClass = {};
-
+  win32_loadXinput();
   windowClass.style = CS_HREDRAW|CS_VREDRAW;
   windowClass.lpfnWndProc = WindowProcCallback;
   windowClass.hInstance = instance;
@@ -210,8 +247,8 @@ internal int CALLBACK WinMain(HINSTANCE instance,
     win32_ResizeDIBSection(&global_back_buffer, 1280, 720);
     if (window) {
       Running = true;
-      int xOffset = 0;
-      int yOffset = 0;
+      xOffset = 0;
+      yOffset = 0;
       while (Running) {
 
 
@@ -250,9 +287,9 @@ internal int CALLBACK WinMain(HINSTANCE instance,
           }
         }
 
-        renderGradient(global_back_buffer, xOffset, yOffset);
-        xOffset++;
-        yOffset++;
+        renderGradient(&global_back_buffer, xOffset, yOffset);
+        //        xOffset++;
+        //        yOffset++;
 
         HDC deviceContext = GetDC(window);
         win32_window_dimension dimension = win32_get_window_dimension(window);
