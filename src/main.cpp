@@ -321,6 +321,7 @@ internal int CALLBACK WinMain(HINSTANCE instance,
 
       int samplesPerSec = 48000;
       int toneHz = 256;
+      int toneVolume = 500;
       uint32 runningSampleIndex = 0;
       int squareWavePeriod = samplesPerSec/toneHz;
       int halfSquareWavePeriod = squareWavePeriod/2;
@@ -400,7 +401,7 @@ internal int CALLBACK WinMain(HINSTANCE instance,
 
 
             for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; sampleIndex++) {
-              int16 sampleValue = (runningSampleIndex/halfSquareWavePeriod) % 2 ? 16000 : -16000;
+              int16 sampleValue = (runningSampleIndex/halfSquareWavePeriod) % 2 ? toneVolume : -toneVolume;
               *sampleOut++ = sampleValue;
               *sampleOut++ = sampleValue;
               runningSampleIndex++;
@@ -408,7 +409,7 @@ internal int CALLBACK WinMain(HINSTANCE instance,
 
             sampleOut = (int16 *)region2;
             for (DWORD sampleIndex = 0; sampleIndex < region2SampleCount; sampleIndex++) {
-              int16 sampleValue = (runningSampleIndex/halfSquareWavePeriod) % 2 ? 16000 : -16000;
+              int16 sampleValue = (runningSampleIndex/halfSquareWavePeriod) % 2 ? toneVolume : -toneVolume;
               *sampleOut++ = sampleValue;
               *sampleOut++ = sampleValue;
               runningSampleIndex++;
