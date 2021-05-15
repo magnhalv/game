@@ -3,10 +3,13 @@
 #include <xinput.h>
 #include <dsound.h>
 #include <math.h>
+#include <strsafe.h>
+#include <intrin.h>
 
 #define local_persist static
 #define global_variable static
 #define internal static
+
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -300,7 +303,6 @@ internal LRESULT CALLBACK WindowProcCallback(HWND window,
     EndPaint(window, &paint);
   } break;
   default:
-    OutputDebugStringA("DEFAULT\n");
       result = DefWindowProc(window, message, wParam, lParam);
     break;
   }
@@ -383,6 +385,14 @@ internal int CALLBACK WinMain(HINSTANCE instance,
       Win32_FillSoundBuffer(&soundOutput, 0, soundOutput.WriteAheadSize);
       globalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
+      LARGE_INTEGER lastCounter;
+      QueryPerformanceCounter(&lastCounter);
+      LARGE_INTEGER perfCounterFrequencyResult;
+      QueryPerformanceFrequency(&perfCounterFrequencyResult);
+      int64 perfCounterFrequency = perfCounterFrequencyResult.QuadPart;
+
+      int64 lastCycleCount = __rdtsc();
+
       while (Running) {
 
         MSG message;
@@ -455,6 +465,29 @@ internal int CALLBACK WinMain(HINSTANCE instance,
         win32_DisplayBufferInWindows(deviceContext, dimension.width, dimension.height, global_back_buffer, 0, 0, dimension.width, dimension.height);
         ReleaseDC(window, deviceContext);
 
+
+        // GET TIMING
+        int64 endCycleCount = __rdtsc();
+
+        LARGE_INTEGER endCounter;
+        QueryPerformanceCounter(&endCounter);
+
+
+        // CALC TIMING
+
+        int64 cyclesElapsed = endCycleCount - lastCycleCount;
+
+        int64 counterElapsed = endCounter.QuadPart - lastCounter.QuadPart;
+        int32 msPerFrame = (int32)((1000*counterElapsed)/perfCounterFrequency);
+        int32 fps = (perfCounterFrequency/counterElapsed);
+        int32 mcpf = (int32)(cyclesElapsed/(1000*1000));
+
+        char writeBuffer[256];
+        StringCbPrintfA(writeBuffer, sizeof(writeBuffer), "%d ms/f. %d f/s. %d mc/f\n", msPerFrame, fps, mcpf);
+        OutputDebugStringA(writeBuffer);
+
+        lastCycleCount = endCycleCount;
+        lastCounter = endCounter;
       }
     }
     else {
@@ -463,6 +496,7 @@ internal int CALLBACK WinMain(HINSTANCE instance,
   }
   else {
   }
+
 
 
   return(0);
