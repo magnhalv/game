@@ -1,10 +1,24 @@
-#include <windows.h>
+/*
+
+  TODO: Platform layer
+
+  - saved game locations
+  - getting a handle to our executable file
+  - asset loading path
+  - threading (launch a thread)
+  - raw input ( support for multiple keyboards)
+  - Sleep/timeBeginperiod
+  - clipCursor() (multi monitor)
+  - fullscreen support
+  - VM_SETCURSOR (control cursor visibility)
+  - QueryCancelAutoPlay
+  - WM_ACTIVATEAPP (for when we are not the active application)
+  - Blit speed improvements
+  - Hardware acceleration
+  - GetKeyboardLayout
+
+ */
 #include <stdint.h>
-#include <xinput.h>
-#include <dsound.h>
-#include <math.h>
-#include <strsafe.h>
-#include <intrin.h>
 
 #define local_persist static
 #define global_variable static
@@ -25,6 +39,15 @@ typedef int32 bool32;
 
 typedef float real32;
 typedef double real64;
+
+#include "game.cpp"
+
+#include <windows.h>
+#include <xinput.h>
+#include <dsound.h>
+#include <math.h>
+#include <strsafe.h>
+#include <intrin.h>
 
 struct win32_offscreen_buffer {
   BITMAPINFO Info;
@@ -84,6 +107,7 @@ global_variable x_input_get_state *XInputGetState_ = xInputGetStateStub;
 global_variable x_input_set_state *XInputSetState_ = xInputSetStateStub;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
+
 
 internal void win32_loadXinput(void) {
   HMODULE xInputLibrary = LoadLibrary("xinput1_4.dll");
@@ -248,36 +272,34 @@ internal LRESULT CALLBACK WindowProcCallback(HWND window,
   case WM_KEYUP:
     {
       uint32 VKCode = wParam;
-      bool wasDown = (lParam & (1 << 30)) != 0;
-      bool isDown = (lParam & (1 << 31)) == 0;
       if (VKCode == 'W') {
       }
-      else if (VKCode == 'A') {
+      if (VKCode == 'A') {
       }
-      else if (VKCode == 'S') {
+      if (VKCode == 'S') {
       }
-      else if (VKCode == 'D') {
+      if (VKCode == 'D') {
       }
-      else if (VKCode == VK_UP) {
+      if (VKCode == VK_UP) {
         yOffset += 5;
         soundOutput.ToneHz += 50;
         soundOutput.WavePeriod = soundOutput.SamplesPerSec/soundOutput.ToneHz;
       }
-      else if (VKCode == VK_DOWN) {
+      if (VKCode == VK_DOWN) {
         yOffset -= 5;
         soundOutput.ToneHz -= 50;
         soundOutput.WavePeriod = soundOutput.SamplesPerSec/soundOutput.ToneHz;
       }
-      else if (VKCode == VK_RIGHT) {
+      if (VKCode == VK_RIGHT) {
         xOffset -= 5;
       }
-      else if (VKCode == VK_LEFT) {
+      if (VKCode == VK_LEFT) {
         xOffset += 5;
       }
-      else if (VKCode == VK_ESCAPE) {
+      if (VKCode == VK_ESCAPE) {
         Running = false;
       }
-      else if (VKCode == VK_SPACE) {
+      if (VKCode == VK_SPACE) {
       }
     }
     break;
@@ -430,7 +452,13 @@ internal int CALLBACK WinMain(HINSTANCE instance,
           }
         }
 
-        renderGradient(&global_back_buffer, xOffset, yOffset);
+        game_offscreen_buffer offscreenBuffer = {};
+        offscreenBuffer.Memory = global_back_buffer.Memory;
+        offscreenBuffer.Width = global_back_buffer.Width;
+        offscreenBuffer.Height = global_back_buffer.Height;
+        offscreenBuffer.Pitch = global_back_buffer.Pitch;
+        GameUpdateAndRender(&offscreenBuffer, xOffset, yOffset);
+        //        renderGradient(&global_back_buffer, xOffset, yOffset);
 
         // Test sound
 
