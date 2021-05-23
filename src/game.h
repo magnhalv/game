@@ -8,13 +8,23 @@ struct game_offscreen_buffer {
   //  BITMAPINFO Info;
   void *Memory;
   int MemorySize;
-  int  Width;
+  int Width;
   int Height;
   int BytesPerPixel;
   int Pitch;
 };
 
-void GameUpdateAndRender(game_offscreen_buffer *buffer, int xOffset, int yOffset);
+struct game_sound_output_buffer {
+  int samples_per_second;
+  int sample_count;
+  int16* samples;
+  int tone_hz;
+};
+
+void GameUpdateAndRender(game_offscreen_buffer    *buffer,
+                         int                       xOffset,
+                         int                       yOffset,
+                         game_sound_output_buffer *sound_buffer);
 
 #define GAME_H
 #endif
