@@ -382,6 +382,15 @@ void win32_clear_sound_buffer(win32_sound_output *sound_output)
   }
 }
 
+internal void win32_process_x_input_button(DWORD x_input_button_state,
+                                           game_button_state *old_state,
+                                           DWORD button_bit,
+                                           game_button_state *new_state) {
+  game_button_state button = {};
+  button.ended_down = ((x_input_button_state & button_bit) == button_bit);
+  button.half_transition_count = (old_state->ended_down != new_state->ended_down) ? 1 : 0;
+}
+
 internal int CALLBACK WinMain(HINSTANCE instance,
 	HINSTANCE PrevInstance,
 	LPSTR CommandLine,
@@ -441,6 +450,11 @@ internal int CALLBACK WinMain(HINSTANCE instance,
 
       int64 lastCycleCount = __rdtsc();
 
+
+      game_input input[2];
+      game_input *new_input = &input[0];
+      game_input *old_input = &input[0];
+
       while (Running) {
 
         MSG message;
@@ -452,7 +466,16 @@ internal int CALLBACK WinMain(HINSTANCE instance,
           DispatchMessageA(&message);
         }
 
-        for (DWORD controllerIndex=0; controllerIndex < XUSER_MAX_COUNT; controllerIndex++) {
+        int max_controller_count = XUSER_MAX_COUNT;
+        if (max_controller_count > ArrayCount(new_input->controllers)) {
+          max_controller_count = ArrayCount(new_input->controllers);
+        }
+
+
+        for (DWORD controllerIndex=0; controllerIndex < max_controller_count; controllerIndex++) {
+
+          game_controller_input *old_controller = &old_input->controllers[controllerIndex];
+          game_controller_input *new_controller = &new_input->controllers[controllerIndex];
 
           XINPUT_STATE controllerState;
           if(XInputGetState(controllerIndex, &controllerState)) {
@@ -470,6 +493,15 @@ internal int CALLBACK WinMain(HINSTANCE instance,
             bool bButton = (pad->wButtons & XINPUT_GAMEPAD_B);
             bool xButton = (pad->wButtons & XINPUT_GAMEPAD_X);
             bool yButton = (pad->wButtons & XINPUT_GAMEPAD_Y);
+
+
+            win32_process_x_input_button(pad->wButtons, &old_controller->down, XINPUT_GAMEPAD_A, &new_controller->down);
+            win32_process_x_input_button(pad->wButtons, &old_controller->right, XINPUT_GAMEPAD_B, &new_controller->right);
+            win32_process_x_input_button(pad->wButtons, &old_controller->left, XINPUT_GAMEPAD_X, &new_controller->left);
+            win32_process_x_input_button(pad->wButtons, &old_controller->up, XINPUT_GAMEPAD_Y, &new_controller->up);
+            win32_process_x_input_button(pad->wButtons, &old_controller->left_shoulder, XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->up);
+            win32_process_x_input_button(pad->wButtons, &old_controller->left_shoulder, XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->left_shoulder);
+            win32_process_x_input_button(pad->wButtons, &old_controller->right_shoulder, XINPUT_GAMEPAD_RIGHT_SHOULDER, &new_controller->right_shoulder);
 
             int16 stickyX = pad->sThumbLX;
             int16 stickyY = pad->sThumbLY;
@@ -516,7 +548,7 @@ internal int CALLBACK WinMain(HINSTANCE instance,
         offscreenBuffer.Width = global_back_buffer.Width;
         offscreenBuffer.Height = global_back_buffer.Height;
         offscreenBuffer.Pitch = global_back_buffer.Pitch;
-        GameUpdateAndRender(&offscreenBuffer, xOffset, yOffset, &sound_buffer);
+        GameUpdateAndRender(&offscreenBuffer, &sound_buffer, new_input);
         //        renderGradient(&global_back_buffer, xOffset, yOffset);
 
         if (is_sound_valid) {
@@ -553,6 +585,10 @@ internal int CALLBACK WinMain(HINSTANCE instance,
 
         lastCycleCount = endCycleCount;
         lastCounter = endCounter;
+
+        game_input *temp = new_input;
+        new_input = old_input;
+        old_input = temp;
       }
     }
     else {

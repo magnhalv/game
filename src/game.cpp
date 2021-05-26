@@ -35,8 +35,25 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
   }
 }
 
-void GameUpdateAndRender(game_offscreen_buffer *buffer, int xOffset, int yOffset, game_sound_output_buffer *sound_buffer) {
+void GameUpdateAndRender(game_offscreen_buffer *buffer, game_sound_output_buffer *sound_buffer, game_input *input) {
   // TODO: Allow sample offsets here for more robust platform options
+  local_persist int x_offset = 0;
+  local_persist int y_offset = 0;
+  local_persist int tone_hz = 0;
+
+  /**  game_controller_input *input_0 = &input.controllers[0];
+  if (input_0->is_analog) {
+  }
+  else {
+  }
+
+  tone_hz = 256 + (int)(120.0f*(input.end_x));
+  y_offset += (int)4.0f*(intput.end_y);
+
+  if (input_0->a_button_down) {
+    x_offset += 1;
+  }
+
   GameOutputSound(sound_buffer);
-  renderGradient(buffer, xOffset, yOffset);
+  renderGradient(buffer, x_offset, y_offet); **/
 }
