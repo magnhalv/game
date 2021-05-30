@@ -2,9 +2,9 @@
 
 local_persist real32 tSine = 0.0f;
 
-internal void GameOutputSound(game_sound_output_buffer *sound_buffer) {
+internal void GameOutputSound(game_sound_output_buffer *sound_buffer, int tone_hz) {
   int16 tone_volume = 3000;
-  int wave_period = sound_buffer->samples_per_second/sound_buffer->tone_hz;
+  int wave_period = sound_buffer->samples_per_second/tone_hz;
 
   int16 first, second, slast, last;
 
@@ -41,19 +41,19 @@ void GameUpdateAndRender(game_offscreen_buffer *buffer, game_sound_output_buffer
   local_persist int y_offset = 0;
   local_persist int tone_hz = 0;
 
-  /**  game_controller_input *input_0 = &input.controllers[0];
+  game_controller_input *input_0 = &input->controllers[1];
   if (input_0->is_analog) {
+      tone_hz = 256 + (int)(128.0f*(input_0->end_x));
+      y_offset += (int)4.0f*(input_0->end_y);
   }
   else {
   }
 
-  tone_hz = 256 + (int)(120.0f*(input.end_x));
-  y_offset += (int)4.0f*(intput.end_y);
 
-  if (input_0->a_button_down) {
+  if (input_0->down.ended_down) {
     x_offset += 1;
   }
 
-  GameOutputSound(sound_buffer);
-  renderGradient(buffer, x_offset, y_offet); **/
+  GameOutputSound(sound_buffer, tone_hz);
+  renderGradient(buffer, x_offset, y_offset);
 }

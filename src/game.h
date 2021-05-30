@@ -30,6 +30,7 @@ struct game_button_state {
 
 struct game_controller_input {
   bool32 is_analog;
+
   real32 start_x;
   real32 end_x;
   real32 min_x;

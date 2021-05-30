@@ -386,9 +386,8 @@ internal void win32_process_x_input_button(DWORD x_input_button_state,
                                            game_button_state *old_state,
                                            DWORD button_bit,
                                            game_button_state *new_state) {
-  game_button_state button = {};
-  button.ended_down = ((x_input_button_state & button_bit) == button_bit);
-  button.half_transition_count = (old_state->ended_down != new_state->ended_down) ? 1 : 0;
+  new_state->ended_down = ((x_input_button_state & button_bit) == button_bit);
+  new_state->half_transition_count = (old_state->ended_down != new_state->ended_down) ? 1 : 0;
 }
 
 internal int CALLBACK WinMain(HINSTANCE instance,
@@ -481,19 +480,30 @@ internal int CALLBACK WinMain(HINSTANCE instance,
           if(XInputGetState(controllerIndex, &controllerState)) {
             XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
 
-            bool up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-            bool down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-            bool left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-            bool right = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-            bool start = (pad->wButtons & XINPUT_GAMEPAD_START);
-            bool back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
-            bool leftShould = (pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
-            bool rightShoulder = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
-            bool aButton = (pad->wButtons & XINPUT_GAMEPAD_A);
-            bool bButton = (pad->wButtons & XINPUT_GAMEPAD_B);
-            bool xButton = (pad->wButtons & XINPUT_GAMEPAD_X);
-            bool yButton = (pad->wButtons & XINPUT_GAMEPAD_Y);
 
+            new_controller->is_analog = true;
+            new_controller->start_x = old_controller->end_x;
+            new_controller->start_y = old_controller->end_y;
+
+            real32 x;
+            if(pad->sThumbLX < 0) {
+              x = (real32)pad->sThumbLX / 32768.0f;
+            }
+            else {
+              x = (real32)pad->sThumbLX / 32767.0f;
+            }
+
+            new_controller->min_x = new_controller->max_x = new_controller->end_x = x;
+
+            real32 y;
+            if(pad->sThumbLY < 0) {
+              y = (real32)pad->sThumbLY / 32768.0f;
+            }
+            else {
+              y = (real32)pad->sThumbLY / 32767.0f;
+            }
+
+            new_controller->min_y = new_controller->max_y = new_controller->end_y = y;
 
             win32_process_x_input_button(pad->wButtons, &old_controller->down, XINPUT_GAMEPAD_A, &new_controller->down);
             win32_process_x_input_button(pad->wButtons, &old_controller->right, XINPUT_GAMEPAD_B, &new_controller->right);
@@ -502,11 +512,9 @@ internal int CALLBACK WinMain(HINSTANCE instance,
             win32_process_x_input_button(pad->wButtons, &old_controller->left_shoulder, XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->up);
             win32_process_x_input_button(pad->wButtons, &old_controller->left_shoulder, XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->left_shoulder);
             win32_process_x_input_button(pad->wButtons, &old_controller->right_shoulder, XINPUT_GAMEPAD_RIGHT_SHOULDER, &new_controller->right_shoulder);
-
-            int16 stickyX = pad->sThumbLX;
-            int16 stickyY = pad->sThumbLY;
           }
           else {
+
           }
         }
 
