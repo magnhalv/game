@@ -4,6 +4,17 @@
 
 // Services that the game provides to the platform layer
 
+#if DEBUG
+#define Assert(expression) if(!(expression)) { *(int *)0 = 0;}
+#else
+#define Assert(expression)
+#endif
+
+#define Kilobytes(value) ((value)*1024)
+#define Megabytes(value) (Kilobytes(value)*1024)
+#define Gigabytes(value) (Megabytes(value)*1024)
+#define Terabytes(value) (Gigabytes(value)*1024)
+
 #define ArrayCount(Array) (sizeof(Array)/sizeof((Array)[0]))
 
 struct game_offscreen_buffer {
@@ -55,13 +66,34 @@ struct game_controller_input {
   };
 };
 
+struct game_clocks {
+  real32 seconds_elapsed;
+}
+
 struct game_input {
   game_controller_input controllers[4];
+  //  game_clocks clocks;
 };
 
-void GameUpdateAndRender(game_offscreen_buffer *buffer,
+struct game_memory {
+  bool32 is_initialized;
+  uint64 permanent_storage_size;
+  void *permanent_storage; // NOTE: Must be cleared to zero
+  uint64 transient_storage_size;
+  void *transient_storage;
+
+};
+
+void GameUpdateAndRender(game_memory *memory,
+                         game_offscreen_buffer *buffer,
                          game_sound_output_buffer *sound_buffer,
                          game_input *input);
+
+struct game_state {
+  int x_offset;
+  int y_offset;
+  int tone_hz;
+};
 
 #define GAME_H
 #endif
