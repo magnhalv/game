@@ -6,8 +6,6 @@ internal void GameOutputSound(game_sound_output_buffer *sound_buffer, int tone_h
   int16 tone_volume = 3000;
   int wave_period = sound_buffer->samples_per_second/tone_hz;
 
-  int16 first, second, slast, last;
-
   int16 *sampleOut = sound_buffer->samples;
   for (int sampleIndex = 0; sampleIndex < sound_buffer->sample_count; sampleIndex++) {
 
@@ -27,8 +25,8 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
   for (int y = 0; y < buffer->Height; y++) {
     uint32 *pixel = (uint32*)row;
     for (int x = 0; x < buffer->Width; x++) {
-      uint8 blue = (x + xOffset);
-      uint8 green = (y + yOffset);
+      uint8 blue = (uint8)(x + xOffset);
+      uint8 green = (uint8)(y + yOffset);
       *pixel++ = ((green << 8) | blue);
     }
     row += buffer->Pitch;
@@ -61,7 +59,7 @@ void GameUpdateAndRender(game_memory              *memory,
   game_controller_input *input_0 = &input->controllers[1];
   if (input_0->is_analog) {
       state->tone_hz = 256 + (int)(128.0f*(input_0->end_x));
-      state->y_offset += (int)4.0f*(input_0->end_y);
+      state->y_offset += (int)(4.0f*(input_0->end_y));
   }
   else {
   }
