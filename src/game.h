@@ -17,6 +17,24 @@
 
 #define ArrayCount(Array) (sizeof(Array)/sizeof((Array)[0]))
 
+inline uint32 safe_truncate_uint64(uint64 value) {
+  Assert(file_size.QuadPart <= 0xFFFFFFFF);
+  return (uint32) value;
+}
+
+#if GAME_INTERNAL
+
+struct debug_read_file_result {
+  uint32 content_size;
+  void *contents;
+};
+
+debug_read_file_result DEBUGplatform_read_entire_file(char *file_name);
+void DEBUGplatform_free_file_memory(void *memory);
+bool32 DEBUGplatform_write_entire_file(char *file_name, void *data, uint32 data_size);
+#endif;
+
+
 struct game_offscreen_buffer {
   //  BITMAPINFO Info;
   void *Memory;
@@ -68,7 +86,7 @@ struct game_controller_input {
 
 struct game_clocks {
   real32 seconds_elapsed;
-}
+};
 
 struct game_input {
   game_controller_input controllers[4];

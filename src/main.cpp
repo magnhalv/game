@@ -26,6 +26,7 @@
 #include <dsound.h>
 #include <intrin.h>
 #include <malloc.h>
+#include <fileapi.h>
 
 #define Pi32 3.14159265359f
 
@@ -110,6 +111,62 @@ global_variable x_input_set_state *XInputSetState_ = xInputSetStateStub;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
+
+internal debug_read_file_result DEBUGplatform_read_entire_file(char *file_name) {
+  HANDLE file_handle = CreateFileA(file_name,
+                                   GENERIC_READ,
+                                   FILE_SHARE_READ,
+                                   0,
+                                   OPEN_EXISTING,
+                                   0,
+                                   0);
+  debug_read_file_result result = {};
+  if (file_handle != INVALID_HANDLE_VALUE) {
+    LARGE_INTEGER file_size;
+    if(GetFileSizeEx(file_handle, &file_size)) {
+      uint32 file_size_32 = safe_truncate_uint64(file_size.QuadPart);
+      result.contents = VirtualAlloc(0, file_size_32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+      if (result.contents) {
+        DWORD bytes_read;
+        if (ReadFile(file_handle, result.contents, file_size_32, &bytes_read, 0) && file_size_32 == bytes_read) {
+          result.content_size = file_size_32;
+        }
+        else {
+          DEBUGplatform_free_file_memory(result.contents);
+          result.contents = 0;
+        }
+      }
+    }
+    else {
+
+    }
+    CloseHandle(file_handle);
+  }
+  return result;
+}
+
+internal void DEBUGplatform_free_file_memory(void *memory) {
+  if (memory) {
+    VirtualFree(memory, 0, MEM_RELEASE);
+  }
+}
+
+internal bool32 DEBUGplatform_write_entire_file(char *file_name, void *data, uint32 data_size) {
+  bool32 is_success = false;
+  HANDLE file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+  if (file_handle != INVALID_HANDLE_VALUE) {
+    //uint32 file_size_32 = safe_truncate_uint64(file_size.QuadPart);
+      DWORD bytes_written;
+      if (WriteFile(file_handle, data, data_size, &bytes_written, NULL)) {
+        is_success = data_size == bytes_written;
+      }
+      else {
+        is_success = false;
+      }
+      CloseHandle(file_handle);
+  }
+  return is_success;
+}
 
 internal void win32_loadXinput(void) {
   HMODULE xInputLibrary = LoadLibrary("xinput1_4.dll");
