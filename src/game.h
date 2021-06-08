@@ -4,7 +4,7 @@
 
 // Services that the game provides to the platform layer
 
-#if DEBUG
+#if GAME_SLOW
 #define Assert(expression) if(!(expression)) { *(int *)0 = 0;}
 #else
 #define Assert(expression)
@@ -18,7 +18,7 @@
 #define ArrayCount(Array) (sizeof(Array)/sizeof((Array)[0]))
 
 inline uint32 safe_truncate_uint64(uint64 value) {
-  Assert(file_size.QuadPart <= 0xFFFFFFFF);
+  Assert(value <= 0xFFFFFFFF);
   return (uint32) value;
 }
 
@@ -66,7 +66,7 @@ struct game_controller_input {
 
   union
   {
-    game_button_state buttons[12];
+    game_button_state buttons[13];
     struct {
       game_button_state move_up;
       game_button_state move_down;
@@ -80,8 +80,11 @@ struct game_controller_input {
       game_button_state left_shoulder;
       game_button_state right_shoulder;
 
-      game_button_state start;
       game_button_state back;
+      game_button_state start;
+
+      //Note: All buttons must be added above this line
+      game_button_state terminator;
     };
   };
 };

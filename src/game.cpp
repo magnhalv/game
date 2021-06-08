@@ -41,15 +41,21 @@ void GameUpdateAndRender(game_memory              *memory,
                          game_input               *input) {
   // TODO: Allow sample offsets here for more robust platform options
 
+  // ASSERTS
+  Assert((&input->controllers[0].terminator - &input->controllers[0].buttons[0]) ==
+         (ArrayCount(input->controllers[0].buttons) - 1));
+   Assert(sizeof(game_state) <= memory->permanent_storage_size);
+  //END ASSERTS
+
   game_state *state = (game_state *)memory->permanent_storage;
 
   if (!memory->is_initialized) {
     char *file_name = __FILE__;
     debug_read_file_result bit_map_memory = DEBUGplatform_read_entire_file(file_name);
     if (bit_map_memory.content_size > 0) {
-      char *data = "test";
-      DEBUGplatform_write_entire_file("./test.out", data, 4);
-      DEBUGplatform_free_file_memory(bit_map_memory.contents);
+      //char *data = "test";
+      //DEBUGplatform_write_entire_file("./test.out", data, 4);
+      //DEBUGplatform_free_file_memory(bit_map_memory.contents);
     }
 
     state->tone_hz = 256;
