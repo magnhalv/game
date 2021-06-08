@@ -587,7 +587,7 @@ int CALLBACK WinMain(HINSTANCE instance,
             game_controller_input *new_controller = get_controller(new_input, our_controller_index);
 
             XINPUT_STATE controllerState;
-            if(XInputGetState(controller_index, &controllerState)) {
+            if(XInputGetState(controller_index, &controllerState) != ERROR_DEVICE_NOT_CONNECTED) {
               new_controller->is_connected = true;
               XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
 
@@ -596,25 +596,33 @@ int CALLBACK WinMain(HINSTANCE instance,
               new_controller->stick_average_x = win32_process_x_input_stick_value(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
               new_controller->stick_average_y = win32_process_x_input_stick_value(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
 
+              if ((new_controller->stick_average_x != 0.0f) || (new_controller->stick_average_y != 0.0f)) {
+                new_controller->is_analog = true;
+              }
+
               if (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP) {
-                new_controller->stick_average_y = 1.0f;
+                new_controller->stick_average_y = -1.0f;
+                new_controller->is_analog = false;
               }
               if (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN) {
-                new_controller->stick_average_y = -1.0f;
+                new_controller->stick_average_y = 1.0f;
+                new_controller->is_analog = false;
               }
               if (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT) {
                 new_controller->stick_average_x = -1.0f;
+                new_controller->is_analog = false;
               }
               if (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) {
                 new_controller->stick_average_x = 1.0f;
+                new_controller->is_analog = false;
               }
 
-              /**
+
               real32 threshold = 0.5f;
               win32_process_x_input_button((new_controller->stick_average_x < -threshold) ? 1 : 0,
                                            &old_controller->move_left,
                                            1,
-                                           &new_controller->move_right);
+                                           &new_controller->move_left);
 
               win32_process_x_input_button((new_controller->stick_average_x > threshold) ? 1 : 0,
                                            &old_controller->move_right,
@@ -626,10 +634,10 @@ int CALLBACK WinMain(HINSTANCE instance,
                                            1,
                                            &new_controller->move_up);
 
-              win32_process_x_input_button((new_controller->stick_average_x > threshold) ? 1 : 0,
+              win32_process_x_input_button((new_controller->stick_average_y > threshold) ? 1 : 0,
                                            &old_controller->move_down,
                                            1,
-                                           &new_controller->move_down); **/
+                                           &new_controller->move_down);
 
 
               win32_process_x_input_button(pad->wButtons, &old_controller->action_down, XINPUT_GAMEPAD_A, &new_controller->action_down);
