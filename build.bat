@@ -4,5 +4,5 @@ set CommonCompilerFlags=-MT -nologo -GR- -Gm- -Oi -EHa- -WX -W4 -wd4201 -wd4100 
 
 IF NOT EXIST build mkdir build
 pushd build
-cl %CommonCompilerFlags%  ../src/main.cpp user32.lib Gdi32.lib
+cl %CommonCompilerFlags%  ../src/main.cpp user32.lib Gdi32.lib winmm.lib
 popd
