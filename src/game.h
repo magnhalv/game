@@ -37,12 +37,12 @@ bool32 DEBUGplatform_write_entire_file(char *file_name, void *data, uint32 data_
 
 struct game_offscreen_buffer {
   //  BITMAPINFO Info;
-  void *Memory;
-  int   MemorySize;
-  int   Width;
-  int   Height;
-  int   BytesPerPixel;
-  int   Pitch;
+  void *memory;
+  int   memory_ize;
+  int   width;
+  int   height;
+  int   bytes_per_pixel;
+  int   pitch;
 };
 
 struct game_sound_output_buffer {
