@@ -18,15 +18,10 @@
   - GetKeyboardLayout
 
  */
+
+// Global includes
 #include <stdint.h>
 #include <math.h>
-#include <strsafe.h>
-#include <windows.h>
-#include <xinput.h>
-#include <dsound.h>
-#include <intrin.h>
-#include <malloc.h>
-#include <fileapi.h>
 
 #define Pi32 3.14159265359f
 
@@ -52,35 +47,17 @@ typedef double real64;
 
 #include "game.cpp"
 
+// Platform layer includes
 
+#include <strsafe.h>
+#include <windows.h>
+#include <xinput.h>
+#include <dsound.h>
+#include <intrin.h>
+#include <malloc.h>
+#include <fileapi.h>
 
-struct win32_offscreen_buffer {
-  BITMAPINFO Info;
-  void *memory;
-  int memorySize;
-  int  width;
-  int height;
-  int bytes_per_pixel;
-  int pitch;
-};
-
-struct win32_window_dimension {
-  int width;
-  int height;
-};
-
-struct win32_sound_output {
-  int SamplesPerSec;
-  int ToneHz;
-  int ToneVolume;
-  uint32 RunningSampleIndex;
-  int WavePeriod;
-  int BytesPerSample;
-  DWORD SecondaryBufferSize;
-  bool IsSoundPlaying;
-  real32 TSine;
-  int WriteAheadSize;
-};
+#include "win32_game.h"
 
 global_variable win32_offscreen_buffer global_back_buffer;
 global_variable bool Running;
@@ -220,7 +197,7 @@ internal void win32_initDSound(HWND window, uint32 samplesPerSec, uint32 bufferS
       ///
       DSBUFFERDESC bufferDescription = {};
       bufferDescription.dwSize = sizeof(bufferDescription);
-      bufferDescription.dwFlags = 0;
+      bufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
       bufferDescription.dwBufferBytes = bufferSize;
       bufferDescription.lpwfxFormat = &waveFormat;
       if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &globalSecondaryBuffer, 0))) {
@@ -494,22 +471,34 @@ inline void win32_debug_draw_vertical(win32_offscreen_buffer *back_buffer, int x
   }
 }
 
+inline void win32_draw_sound_buffer_marker(win32_offscreen_buffer *back_buffer,
+                                           win32_sound_output *sound_output,
+                                           real32 c, int pad_x, int top, int bottom,
+                                           DWORD value, uint32 color) {
+    Assert(value < sound_output->SecondaryBufferSize);
+    int x = pad_x + (int)(c * (real32)value);
+    win32_debug_draw_vertical(back_buffer, x, top, bottom, color);
+}
+
 inline void  win32_debug_sync_display(win32_offscreen_buffer *back_buffer,
-                                      int nof_play_cursors,
-                                      DWORD *play_cursors,
+                                      int nof_markers,
+                                      win32_debug_time_marker *markers,
                                       win32_sound_output *sound_output,
                                       real32 target_seconds_per_frame
                                       ) {
   int pad_x = 16;
   int pad_y = 16;
+
   int top = pad_y;
   int bottom = back_buffer->height - pad_y;
+
   real32 c = (real32)(back_buffer->width- 2*pad_x) / (real32)sound_output->SecondaryBufferSize;
-  for(int play_cursor_index = 0; play_cursor_index < nof_play_cursors; play_cursor_index++) {
-    DWORD current_play_cursor = play_cursors[play_cursor_index];
-    Assert(current_play_cursor < sound_output->SecondaryBufferSize);
-    int x = pad_x + (int)(c * (real32)current_play_cursor);
-    win32_debug_draw_vertical(back_buffer, x, top, bottom, 0xFFFFFFFF);
+  for(int marker_index = 0; marker_index < nof_markers; marker_index++) {
+    win32_debug_time_marker *current_marker = &markers[marker_index];
+    win32_draw_sound_buffer_marker(back_buffer, sound_output, c, pad_x, top, bottom, current_marker->play_cursor, 0xFFFFFFFF);
+    win32_draw_sound_buffer_marker(back_buffer, sound_output, c, pad_x, top, bottom, current_marker->write_cursor, 0x00FF0000);
+
+
   }
 }
 
@@ -599,8 +588,8 @@ int CALLBACK WinMain(HINSTANCE instance,
         LARGE_INTEGER last_counter = win32_get_wall_clock();
         uint64 last_cycle_count = __rdtsc();
 
-        int debug_last_play_cursor_index = 0;
-        DWORD debug_play_cursors[game_update_hz] = {};
+        int debug_last_marker_index = 0;
+        win32_debug_time_marker debug_time_markers[game_update_hz] = {};
 
         while (Running) {
 
@@ -775,7 +764,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           HDC deviceContext = GetDC(window);
 
 #if GAME_INTERNAL
-          win32_debug_sync_display(&global_back_buffer, ArrayCount(debug_play_cursors), debug_play_cursors, &global_sound_output, target_seconds_per_frame);
+          win32_debug_sync_display(&global_back_buffer, ArrayCount(debug_time_markers), debug_time_markers, &global_sound_output, target_seconds_per_frame);
 #endif
 
           win32_DisplayBufferInWindows(deviceContext, dimension.width, dimension.height, global_back_buffer, 0, 0, dimension.width, dimension.height);
@@ -786,10 +775,10 @@ int CALLBACK WinMain(HINSTANCE instance,
           DWORD play_cursor;
           DWORD write_cursor;
           globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
-          debug_play_cursors[debug_last_play_cursor_index++] = play_cursor;
+          debug_time_markers[debug_last_marker_index++] = {.play_cursor = play_cursor, .write_cursor = write_cursor};
 
-          if (debug_last_play_cursor_index > ArrayCount(debug_play_cursors)) {
-            debug_last_play_cursor_index = 0;
+          if (debug_last_marker_index > ArrayCount(debug_time_markers)) {
+            debug_last_marker_index = 0;
           }
 #endif
           game_input *temp = new_input;
