@@ -1,6 +1,6 @@
 @echo off
 
-set CommonCompilerFlags=-MT -nologo -GR- -Gm- -Oi -EHa- -WX -W4 -wd4201 -wd4100 -Fmwin32_game.map -DGAME_INTERNAL=1 -DGAME_SLOW=1 -FC -Zi
+set CommonCompilerFlags=-MT -nologo -GR- -Gm- -Oi -EHa- -WX -W4 -wd4201 -wd4100 -Fmwin32_game.map -DGAME_INTERNAL=1 -DGAME_SLOW=1 -FC -Zi /std:c++latest
 
 IF NOT EXIST build mkdir build
 pushd build

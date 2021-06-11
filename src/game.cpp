@@ -50,13 +50,13 @@ void GameUpdateAndRender(game_memory              *memory,
   game_state *state = (game_state *)memory->permanent_storage;
 
   if (!memory->is_initialized) {
-    char *file_name = __FILE__;
-    debug_read_file_result bit_map_memory = DEBUGplatform_read_entire_file(file_name);
-    if (bit_map_memory.content_size > 0) {
+    //    char *file_name = __FILE__;
+    //debug_read_file_result bit_map_memory = DEBUGplatform_read_entire_file(file_name);
+    //    if (bit_map_memory.content_size > 0) {
       //char *data = "test";
       //DEBUGplatform_write_entire_file("./test.out", data, 4);
       //DEBUGplatform_free_file_memory(bit_map_memory.contents);
-    }
+    //}
 
     state->tone_hz = 256;
     memory->is_initialized = true;
