@@ -746,14 +746,14 @@ int CALLBACK WinMain(HINSTANCE instance,
           real32 seconds_elapsed_for_work = win32_get_seconds_elapsed(last_counter, work_counter);
           real32 seconds_elapsed_for_frame = seconds_elapsed_for_work;
           if (seconds_elapsed_for_frame < target_seconds_per_frame) {
+            // TODO: Figure out why granularity doesnt work
             if (is_sleep_granular) {
-              DWORD sleep_ms = (DWORD)((target_seconds_per_frame - seconds_elapsed_for_frame) * 1000.0f);
-              if (sleep_ms > 0) {
-                Sleep(sleep_ms);
-              }
+              //              DWORD sleep_ms = (DWORD)((target_seconds_per_frame - seconds_elapsed_for_frame) * 1000.0f);
+              //  if (sleep_ms > 0) {
+                //Sleep(sleep_ms);
+              //              }
             }
 
-            // TODO: Figure out why granularity doesnt work
             //            real32 test_seconds_elapsed_for_frame = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
             // Assert(test_seconds_elapsed_for_frame <= target_seconds_per_frame);
 
