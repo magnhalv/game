@@ -523,7 +523,8 @@ int CALLBACK WinMain(HINSTANCE instance,
   //  WindowClass.hIcon;
   windowClass.lpszClassName = "GameWindowClass";
 
-#define monitor_refresh_hz 144
+#define frames_of_audio_latency 2
+#define monitor_refresh_hz 60
 #define game_update_hz (monitor_refresh_hz / 2)
   real32 target_seconds_per_frame = 1.0f / (real32)monitor_refresh_hz;
 
@@ -554,7 +555,7 @@ int CALLBACK WinMain(HINSTANCE instance,
       global_sound_output.BytesPerSample = sizeof(int16)*2;
       global_sound_output.SecondaryBufferSize = global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample;
       global_sound_output.TSine = 0;
-      global_sound_output.WriteAheadSize = global_sound_output.SamplesPerSec / 15;
+      global_sound_output.WriteAheadSize = frames_of_audio_latency*(global_sound_output.SamplesPerSec / game_update_hz);
 
       int16 *samples = (int16 *)VirtualAlloc(0, global_sound_output.SecondaryBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
@@ -587,6 +588,11 @@ int CALLBACK WinMain(HINSTANCE instance,
 
         LARGE_INTEGER last_counter = win32_get_wall_clock();
         uint64 last_cycle_count = __rdtsc();
+
+        DWORD last_play_cursor = 0;
+        //        DWORD last_write_cursor = 0;
+
+        bool32 sound_is_valid = false;
 
         int debug_last_marker_index = 0;
         win32_debug_time_marker debug_time_markers[game_update_hz] = {};
@@ -690,45 +696,47 @@ int CALLBACK WinMain(HINSTANCE instance,
             }
           }
 
-          DWORD playCursor;
-          DWORD writeCursor;
+
 
           DWORD byte_to_lock = 0;
-          DWORD bytes_to_write;
-          DWORD targetCursor;
-          // TODO: Tighten up sound logic so that we know where we should be
-          // writing to and can anticipate the time spent in the game update.
-          if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor))) {
+          DWORD bytes_to_write = 0;
+          DWORD target_cursor = 0;
+          if (sound_is_valid) {
 
             byte_to_lock = (global_sound_output.RunningSampleIndex*global_sound_output.BytesPerSample) % global_sound_output.SecondaryBufferSize;
-            targetCursor = (playCursor + (global_sound_output.WriteAheadSize * global_sound_output.BytesPerSample)) % global_sound_output.SecondaryBufferSize;
+            target_cursor = (last_play_cursor + (global_sound_output.WriteAheadSize * global_sound_output.BytesPerSample)) % global_sound_output.SecondaryBufferSize;
 
-            // TODO: Change to use a lower latency offset from the playcursor
-            // when we actually start having sound effects
-            if (byte_to_lock > targetCursor) {
+            if (byte_to_lock > target_cursor) {
               bytes_to_write = (global_sound_output.SecondaryBufferSize - byte_to_lock);
-              bytes_to_write += targetCursor;
+              bytes_to_write += target_cursor;
             }
             else {
-              bytes_to_write = targetCursor - byte_to_lock;
+              bytes_to_write = target_cursor - byte_to_lock;
             }
 
-            game_sound_output_buffer sound_buffer = {};
-            sound_buffer.samples_per_second = global_sound_output.SamplesPerSec;
-            sound_buffer.sample_count = bytes_to_write / global_sound_output.BytesPerSample;
-            sound_buffer.samples = samples;
-            sound_buffer.tone_hz = global_sound_output.ToneHz;
+            char soundDebugBuffer[256];
+            StringCbPrintfA(soundDebugBuffer, sizeof(soundDebugBuffer), "PC:%u BTL:%u TC:%u BTW:%u\n", last_play_cursor, byte_to_lock, target_cursor, bytes_to_write);
+            OutputDebugStringA(soundDebugBuffer);
+          }
 
-            game_offscreen_buffer offscreenBuffer = {};
-            offscreenBuffer.memory = global_back_buffer.memory;
-            offscreenBuffer.width = global_back_buffer.width;
-            offscreenBuffer.height = global_back_buffer.height;
-            offscreenBuffer.pitch = global_back_buffer.pitch;
-            GameUpdateAndRender(&game_memory, &offscreenBuffer, &sound_buffer, new_input);
-            //        renderGradient(&global_back_buffer, xOffset, yOffset);
+          game_sound_output_buffer sound_buffer = {};
+          sound_buffer.samples_per_second = global_sound_output.SamplesPerSec;
+          sound_buffer.sample_count = bytes_to_write / global_sound_output.BytesPerSample;
+          sound_buffer.samples = samples;
+          sound_buffer.tone_hz = global_sound_output.ToneHz;
 
+          game_offscreen_buffer offscreenBuffer = {};
+          offscreenBuffer.memory = global_back_buffer.memory;
+          offscreenBuffer.width = global_back_buffer.width;
+          offscreenBuffer.height = global_back_buffer.height;
+          offscreenBuffer.pitch = global_back_buffer.pitch;
+          GameUpdateAndRender(&game_memory, &offscreenBuffer, &sound_buffer, new_input);
+
+          if (sound_is_valid) {
             win32_fill_sound_buffer(&global_sound_output, byte_to_lock, bytes_to_write, &sound_buffer);
           }
+
+
 
           // GET TIMING
           LARGE_INTEGER work_counter = win32_get_wall_clock();
@@ -737,10 +745,10 @@ int CALLBACK WinMain(HINSTANCE instance,
           if (seconds_elapsed_for_frame < target_seconds_per_frame) {
             // TODO: Figure out why granularity doesnt work
             if (is_sleep_granular) {
-              //              DWORD sleep_ms = (DWORD)((target_seconds_per_frame - seconds_elapsed_for_frame) * 1000.0f);
-              //  if (sleep_ms > 0) {
-                //Sleep(sleep_ms);
-              //              }
+              DWORD sleep_ms = (DWORD)((target_seconds_per_frame - seconds_elapsed_for_frame) * 1000.0f);
+                if (sleep_ms > 0) {
+                Sleep(sleep_ms);
+                }
             }
 
             //            real32 test_seconds_elapsed_for_frame = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
@@ -770,14 +778,27 @@ int CALLBACK WinMain(HINSTANCE instance,
           win32_DisplayBufferInWindows(deviceContext, dimension.width, dimension.height, global_back_buffer, 0, 0, dimension.width, dimension.height);
           ReleaseDC(window, deviceContext);
 
-
-#if GAME_INTERNAL
           DWORD play_cursor;
           DWORD write_cursor;
-          globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
-          debug_time_markers[debug_last_marker_index++] = {.play_cursor = play_cursor, .write_cursor = write_cursor};
+          if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
+            last_play_cursor = play_cursor;
+            if (!sound_is_valid) {
+              global_sound_output.RunningSampleIndex = write_cursor / global_sound_output.BytesPerSample;
+              sound_is_valid = true;
+            }
 
-          if (debug_last_marker_index > ArrayCount(debug_time_markers)) {
+          }
+          else {
+            sound_is_valid = false;
+          }
+
+#if GAME_INTERNAL
+          debug_time_markers[debug_last_marker_index++] = {
+            .play_cursor = play_cursor,
+            .write_cursor = write_cursor
+          };
+
+          if (debug_last_marker_index >= ArrayCount(debug_time_markers)) {
             debug_last_marker_index = 0;
           }
 #endif

@@ -77,12 +77,15 @@ void GameUpdateAndRender(game_memory              *memory,
     }
     if (controller->move_down.ended_down) {
       state->y_offset += 5;
+      state->tone_hz = 256;
     }
     if (controller->move_left.ended_down) {
       state->x_offset -= 5;
+      state->tone_hz = 256 - 128;
     }
     if (controller->move_right.ended_down) {
       state->x_offset += 5;
+      state->tone_hz = 256 + 128;
     }
   }
 
