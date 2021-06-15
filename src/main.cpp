@@ -523,7 +523,7 @@ int CALLBACK WinMain(HINSTANCE instance,
   //  WindowClass.hIcon;
   windowClass.lpszClassName = "GameWindowClass";
 
-#define frames_of_audio_latency 2
+#define frames_of_audio_latency 4
 #define monitor_refresh_hz 60
 #define game_update_hz (monitor_refresh_hz / 2)
   real32 target_seconds_per_frame = 1.0f / (real32)monitor_refresh_hz;
@@ -590,9 +590,11 @@ int CALLBACK WinMain(HINSTANCE instance,
         uint64 last_cycle_count = __rdtsc();
 
         DWORD last_play_cursor = 0;
-        //        DWORD last_write_cursor = 0;
+        DWORD last_write_cursor = 0;
 
         bool32 sound_is_valid = false;
+        DWORD audio_latency_in_bytes = 0;
+        real32 audio_latency_in_seconds = 0;
 
         int debug_last_marker_index = 0;
         win32_debug_time_marker debug_time_markers[game_update_hz] = {};
@@ -733,8 +735,20 @@ int CALLBACK WinMain(HINSTANCE instance,
             DWORD play_cursor = 0;
             DWORD write_cursor = 0;
             globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
+
+            DWORD unwrapped_write_cursor = write_cursor;
+            if (unwrapped_write_cursor < play_cursor) {
+              unwrapped_write_cursor += global_sound_output.SecondaryBufferSize;
+            }
+            audio_latency_in_bytes = unwrapped_write_cursor - play_cursor;
+
+            audio_latency_in_seconds = (((real32)audio_latency_in_bytes / (real32)global_sound_output.BytesPerSample) / (real32)global_sound_output.SamplesPerSec);
+
             char soundDebugBuffer[256];
-            StringCbPrintfA(soundDebugBuffer, sizeof(soundDebugBuffer), "LPC:%u BTL:%u TC:%u BTW:%u - PC:%u WC:%u\n", last_play_cursor, byte_to_lock, target_cursor, bytes_to_write, play_cursor, write_cursor);
+            StringCbPrintfA(soundDebugBuffer,
+                            sizeof(soundDebugBuffer),
+                            "LPC:%u BTL:%u TC:%u BTW:%u - PC:%u WC:%u - DELTA:%u (%fs)\n",
+                            last_play_cursor, byte_to_lock, target_cursor, bytes_to_write, play_cursor, write_cursor, audio_latency_in_bytes, audio_latency_in_seconds);
             OutputDebugStringA(soundDebugBuffer);
 #endif
             win32_fill_sound_buffer(&global_sound_output, byte_to_lock, bytes_to_write, &sound_buffer);
@@ -755,8 +769,10 @@ int CALLBACK WinMain(HINSTANCE instance,
               }
             }
 
-            //            real32 test_seconds_elapsed_for_frame = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-            // Assert(test_seconds_elapsed_for_frame <= target_seconds_per_frame);
+            real32 test_seconds_elapsed_for_frame = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+            if (test_seconds_elapsed_for_frame <= target_seconds_per_frame) {
+              // TODO: Log missed
+            }
 
             while (seconds_elapsed_for_frame < target_seconds_per_frame) {
               seconds_elapsed_for_frame = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
@@ -786,6 +802,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           DWORD write_cursor;
           if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
             last_play_cursor = play_cursor;
+            last_write_cursor = write_cursor;
             if (!sound_is_valid) {
               global_sound_output.RunningSampleIndex = write_cursor / global_sound_output.BytesPerSample;
               sound_is_valid = true;
