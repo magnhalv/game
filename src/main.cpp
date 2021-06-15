@@ -713,10 +713,6 @@ int CALLBACK WinMain(HINSTANCE instance,
             else {
               bytes_to_write = target_cursor - byte_to_lock;
             }
-
-            char soundDebugBuffer[256];
-            StringCbPrintfA(soundDebugBuffer, sizeof(soundDebugBuffer), "PC:%u BTL:%u TC:%u BTW:%u\n", last_play_cursor, byte_to_lock, target_cursor, bytes_to_write);
-            OutputDebugStringA(soundDebugBuffer);
           }
 
           game_sound_output_buffer sound_buffer = {};
@@ -733,6 +729,14 @@ int CALLBACK WinMain(HINSTANCE instance,
           GameUpdateAndRender(&game_memory, &offscreenBuffer, &sound_buffer, new_input);
 
           if (sound_is_valid) {
+#if GAME_INTERNAL
+            DWORD play_cursor = 0;
+            DWORD write_cursor = 0;
+            globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
+            char soundDebugBuffer[256];
+            StringCbPrintfA(soundDebugBuffer, sizeof(soundDebugBuffer), "LPC:%u BTL:%u TC:%u BTW:%u - PC:%u WC:%u\n", last_play_cursor, byte_to_lock, target_cursor, bytes_to_write, play_cursor, write_cursor);
+            OutputDebugStringA(soundDebugBuffer);
+#endif
             win32_fill_sound_buffer(&global_sound_output, byte_to_lock, bytes_to_write, &sound_buffer);
           }
 
@@ -746,9 +750,9 @@ int CALLBACK WinMain(HINSTANCE instance,
             // TODO: Figure out why granularity doesnt work
             if (is_sleep_granular) {
               DWORD sleep_ms = (DWORD)((target_seconds_per_frame - seconds_elapsed_for_frame) * 1000.0f);
-                if (sleep_ms > 0) {
+              if (sleep_ms > 0) {
                 Sleep(sleep_ms);
-                }
+              }
             }
 
             //            real32 test_seconds_elapsed_for_frame = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
