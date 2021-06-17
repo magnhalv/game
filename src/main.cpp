@@ -547,18 +547,6 @@ int CALLBACK WinMain(HINSTANCE instance,
     if (window) {
       Running = true;
 
-      global_sound_output.SamplesPerSec = 48000;
-      global_sound_output.ToneHz = 256;
-      global_sound_output.ToneVolume = 500;
-      global_sound_output.RunningSampleIndex = 0;
-      global_sound_output.WavePeriod = global_sound_output.SamplesPerSec/global_sound_output.ToneHz;
-      global_sound_output.BytesPerSample = sizeof(int16)*2;
-      global_sound_output.SecondaryBufferSize = global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample;
-      global_sound_output.TSine = 0;
-      global_sound_output.WriteAheadSize = frames_of_audio_latency*(global_sound_output.SamplesPerSec / game_update_hz);
-
-      int16 *samples = (int16 *)VirtualAlloc(0, global_sound_output.SecondaryBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-
 #if GAME_INTERNAL
       LPVOID base_address = (LPVOID)Terabytes((uint64)2);
 #else
@@ -574,8 +562,20 @@ int CALLBACK WinMain(HINSTANCE instance,
                                                    MEM_RESERVE|MEM_COMMIT,
                                                    PAGE_READWRITE);
 
-      game_memory.transient_storage = ((uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size);
+      global_sound_output.SamplesPerSec = 48000;
+      global_sound_output.ToneHz = 256;
+      global_sound_output.ToneVolume = 500;
+      global_sound_output.RunningSampleIndex = 0;
+      global_sound_output.WavePeriod = global_sound_output.SamplesPerSec/global_sound_output.ToneHz;
+      global_sound_output.BytesPerSample = sizeof(int16)*2;
+      global_sound_output.SecondaryBufferSize = global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample;
+      global_sound_output.TSine = 0;
+      global_sound_output.WriteAheadSize = frames_of_audio_latency*(global_sound_output.SamplesPerSec / game_update_hz);
 
+      global_sound_output.safety_bytes = ((global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample)/game_update_hz)/3;
+      game_memory.transient_storage = ((uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size);
+      // used by game sound output
+      int16 *samples = (int16 *)VirtualAlloc(0, global_sound_output.SecondaryBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
       win32_initDSound(window, global_sound_output.SamplesPerSec, global_sound_output.SecondaryBufferSize);
       win32_clear_sound_buffer(&global_sound_output);
@@ -589,15 +589,12 @@ int CALLBACK WinMain(HINSTANCE instance,
         LARGE_INTEGER last_counter = win32_get_wall_clock();
         uint64 last_cycle_count = __rdtsc();
 
-        DWORD last_play_cursor = 0;
-        DWORD last_write_cursor = 0;
-
-        bool32 sound_is_valid = false;
         DWORD audio_latency_in_bytes = 0;
         real32 audio_latency_in_seconds = 0;
 
         int debug_last_marker_index = 0;
         win32_debug_time_marker debug_time_markers[game_update_hz] = {};
+        bool32 sound_is_valid = false;
 
         while (Running) {
 
@@ -698,16 +695,64 @@ int CALLBACK WinMain(HINSTANCE instance,
             }
           }
 
+          game_offscreen_buffer offscreenBuffer = {};
+          offscreenBuffer.memory = global_back_buffer.memory;
+          offscreenBuffer.width = global_back_buffer.width;
+          offscreenBuffer.height = global_back_buffer.height;
+          offscreenBuffer.pitch = global_back_buffer.pitch;
+          game_update_and_render(&game_memory, &offscreenBuffer, new_input);
 
+          /*
 
-          DWORD byte_to_lock = 0;
-          DWORD bytes_to_write = 0;
-          DWORD target_cursor = 0;
-          if (sound_is_valid) {
+            Sound oupput computation
 
-            byte_to_lock = (global_sound_output.RunningSampleIndex*global_sound_output.BytesPerSample) % global_sound_output.SecondaryBufferSize;
-            target_cursor = (last_play_cursor + (global_sound_output.WriteAheadSize * global_sound_output.BytesPerSample)) % global_sound_output.SecondaryBufferSize;
+            We define a safety value thjat is the number of samples we think our game update loop may vary by.
+            (let's say up to 2 ms).
 
+            When we wake up to write audio, we will look and see what the play cursor
+            position is and we will forecast ahead where we think the play cursor will be
+            on the next frame boundry.
+
+            We will then look to see if the write cursor is before that by at least our safety value.
+            If it is, the target fill position is the frame boundry plus one frame.
+
+            This gives us us perfect audio sync in the case of a card that has low enough latency.
+
+            If the write cursor is _after_ that safety margin, then we assume we can never sync
+            the audio perfectly, so we will write one frame's worth of audio plus the safety margin's worth of guard samples.
+
+          */
+          DWORD play_cursor = 0;
+          DWORD write_cursor = 0;
+          if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
+            if (!sound_is_valid) {
+              global_sound_output.RunningSampleIndex = write_cursor / global_sound_output.BytesPerSample;
+              sound_is_valid = true;
+            }
+
+            DWORD byte_to_lock = (global_sound_output.RunningSampleIndex*global_sound_output.BytesPerSample) % global_sound_output.SecondaryBufferSize;
+
+            DWORD expected_sound_bytes_per_frame = (global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample) / game_update_hz;
+            DWORD expected_frame_boundry_byte = play_cursor + expected_sound_bytes_per_frame;
+
+            DWORD safe_write_cursor = write_cursor;
+            if (safe_write_cursor < play_cursor) {
+              safe_write_cursor += global_sound_output.SecondaryBufferSize;
+            }
+            Assert(safe_write_cursor > play_cursor);
+            safe_write_cursor += global_sound_output.safety_bytes;
+
+            bool32 is_audio_card_low_latency = safe_write_cursor < expected_frame_boundry_byte;
+            DWORD target_cursor;
+            if (is_audio_card_low_latency) {
+              target_cursor = (expected_frame_boundry_byte + expected_sound_bytes_per_frame);
+            }
+            else {
+               target_cursor = (write_cursor + expected_sound_bytes_per_frame + global_sound_output.safety_bytes);
+            }
+            target_cursor = target_cursor % global_sound_output.SecondaryBufferSize;
+
+            DWORD bytes_to_write = 0;
             if (byte_to_lock > target_cursor) {
               bytes_to_write = (global_sound_output.SecondaryBufferSize - byte_to_lock);
               bytes_to_write += target_cursor;
@@ -715,27 +760,16 @@ int CALLBACK WinMain(HINSTANCE instance,
             else {
               bytes_to_write = target_cursor - byte_to_lock;
             }
-          }
 
-          game_sound_output_buffer sound_buffer = {};
-          sound_buffer.samples_per_second = global_sound_output.SamplesPerSec;
-          sound_buffer.sample_count = bytes_to_write / global_sound_output.BytesPerSample;
-          sound_buffer.samples = samples;
-          sound_buffer.tone_hz = global_sound_output.ToneHz;
+            game_sound_output_buffer sound_buffer = {};
+            sound_buffer.samples_per_second = global_sound_output.SamplesPerSec;
+            sound_buffer.sample_count = bytes_to_write / global_sound_output.BytesPerSample;
+            sound_buffer.samples = samples;
+            sound_buffer.tone_hz = global_sound_output.ToneHz;
 
-          game_offscreen_buffer offscreenBuffer = {};
-          offscreenBuffer.memory = global_back_buffer.memory;
-          offscreenBuffer.width = global_back_buffer.width;
-          offscreenBuffer.height = global_back_buffer.height;
-          offscreenBuffer.pitch = global_back_buffer.pitch;
-          GameUpdateAndRender(&game_memory, &offscreenBuffer, &sound_buffer, new_input);
+            game_get_sound_samples(&game_memory, &sound_buffer);
 
-          if (sound_is_valid) {
 #if GAME_INTERNAL
-            DWORD play_cursor = 0;
-            DWORD write_cursor = 0;
-            globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
-
             DWORD unwrapped_write_cursor = write_cursor;
             if (unwrapped_write_cursor < play_cursor) {
               unwrapped_write_cursor += global_sound_output.SecondaryBufferSize;
@@ -747,12 +781,17 @@ int CALLBACK WinMain(HINSTANCE instance,
             char soundDebugBuffer[256];
             StringCbPrintfA(soundDebugBuffer,
                             sizeof(soundDebugBuffer),
-                            "LPC:%u BTL:%u TC:%u BTW:%u - PC:%u WC:%u - DELTA:%u (%fs)\n",
-                            last_play_cursor, byte_to_lock, target_cursor, bytes_to_write, play_cursor, write_cursor, audio_latency_in_bytes, audio_latency_in_seconds);
+                            "BTL:%u TC:%u BTW:%u - PC:%u WC:%u - DELTA:%u (%fs)\n",
+                            byte_to_lock, target_cursor, bytes_to_write, play_cursor, write_cursor, audio_latency_in_bytes, audio_latency_in_seconds);
             OutputDebugStringA(soundDebugBuffer);
 #endif
             win32_fill_sound_buffer(&global_sound_output, byte_to_lock, bytes_to_write, &sound_buffer);
           }
+          else {
+            sound_is_valid = false;
+          }
+
+
 
 
 
@@ -798,30 +837,17 @@ int CALLBACK WinMain(HINSTANCE instance,
           win32_DisplayBufferInWindows(deviceContext, dimension.width, dimension.height, global_back_buffer, 0, 0, dimension.width, dimension.height);
           ReleaseDC(window, deviceContext);
 
-          DWORD play_cursor;
-          DWORD write_cursor;
-          if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
-            last_play_cursor = play_cursor;
-            last_write_cursor = write_cursor;
-            if (!sound_is_valid) {
-              global_sound_output.RunningSampleIndex = write_cursor / global_sound_output.BytesPerSample;
-              sound_is_valid = true;
-            }
-
-          }
-          else {
-            sound_is_valid = false;
-          }
-
 #if GAME_INTERNAL
-          debug_time_markers[debug_last_marker_index++] = {
-            .play_cursor = play_cursor,
-            .write_cursor = write_cursor
-          };
+        globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
 
-          if (debug_last_marker_index >= ArrayCount(debug_time_markers)) {
-            debug_last_marker_index = 0;
-          }
+        debug_time_markers[debug_last_marker_index++] = {
+          .play_cursor = play_cursor,
+          .write_cursor = write_cursor
+        };
+
+        if (debug_last_marker_index >= ArrayCount(debug_time_markers)) {
+          debug_last_marker_index = 0;
+        }
 #endif
           game_input *temp = new_input;
           new_input = old_input;

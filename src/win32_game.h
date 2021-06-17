@@ -27,6 +27,7 @@ struct win32_sound_output {
   bool IsSoundPlaying;
   real32 TSine;
   int WriteAheadSize;
+  DWORD safety_bytes;
 };
 
 struct win32_debug_time_marker {

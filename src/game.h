@@ -111,10 +111,8 @@ struct game_memory {
 
 };
 
-void GameUpdateAndRender(game_memory *memory,
-                         game_offscreen_buffer *buffer,
-                         game_sound_output_buffer *sound_buffer,
-                         game_input *input);
+void game_update_and_render(game_memory *memory, game_offscreen_buffer *buffer, game_input *input);
+void game_get_sound_samples(game_memory *memory, game_sound_output_buffer *sound_buffer);
 
 struct game_state {
   int x_offset;

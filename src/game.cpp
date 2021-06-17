@@ -35,10 +35,9 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
 
 
 
-void GameUpdateAndRender(game_memory              *memory,
-                         game_offscreen_buffer    *buffer,
-                         game_sound_output_buffer *sound_buffer,
-                         game_input               *input) {
+void game_update_and_render(game_memory              *memory,
+                            game_offscreen_buffer    *buffer,
+                            game_input               *input) {
   // TODO: Allow sample offsets here for more robust platform options
 
   // ASSERTS
@@ -89,6 +88,10 @@ void GameUpdateAndRender(game_memory              *memory,
     }
   }
 
-  GameOutputSound(sound_buffer, state->tone_hz);
   renderGradient(buffer, state->x_offset, state->y_offset);
+}
+
+void game_get_sound_samples(game_memory *memory, game_sound_output_buffer *sound_buffer) {
+    game_state *state = (game_state *)memory->permanent_storage;
+    GameOutputSound(sound_buffer, state->tone_hz);
 }
