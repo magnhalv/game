@@ -31,8 +31,14 @@ struct win32_sound_output {
 };
 
 struct win32_debug_time_marker {
-  DWORD play_cursor;
-  DWORD write_cursor;
+  DWORD output_play_cursor;
+  DWORD output_write_cursor;
+  DWORD output_location;
+  DWORD output_byte_count;
+
+  DWORD expected_flip_play_cursor;
+  DWORD flip_play_cursor;
+  DWORD flip_write_cursor;
 };
 
 #define WIN32_GAME_H
