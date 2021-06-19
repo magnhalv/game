@@ -1,22 +1,20 @@
 #include "game.h"
 
-local_persist real32 tSine = 0.0f;
-
-internal void GameOutputSound(game_sound_output_buffer *sound_buffer, int tone_hz) {
+internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state *state) {
   int16 tone_volume = 3000;
-  int wave_period = sound_buffer->samples_per_second/tone_hz;
+  int wave_period = sound_buffer->samples_per_second/state->tone_hz;
 
   int16 *sampleOut = sound_buffer->samples;
   for (int sampleIndex = 0; sampleIndex < sound_buffer->sample_count; sampleIndex++) {
 
 
 
-    real32 sineValue = sinf(tSine);
+    real32 sineValue = sinf(state->t_sine);
     int16 sampleValue = (int16)(sineValue * tone_volume);
     *sampleOut++ = sampleValue;
     *sampleOut++ = sampleValue;
 
-    tSine += (1.0f/(real32)wave_period) * 2.0f * Pi32;
+    state->t_sine += (1.0f/(real32)wave_period) * 2.0f * Pi32;
   }
 }
 
@@ -27,7 +25,7 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
     for (int x = 0; x < buffer->width; x++) {
       uint8 blue = (uint8)(x + xOffset);
       uint8 green = (uint8)(y + yOffset);
-      *pixel++ = ((green << 8) | blue);
+      *pixel++ = ((green << 16) | blue);
     }
     row += buffer->pitch;
   }
@@ -35,9 +33,8 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
 
 
 
-void game_update_and_render(game_memory              *memory,
-                            game_offscreen_buffer    *buffer,
-                            game_input               *input) {
+extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
+{
   // TODO: Allow sample offsets here for more robust platform options
 
   // ASSERTS
@@ -49,15 +46,16 @@ void game_update_and_render(game_memory              *memory,
   game_state *state = (game_state *)memory->permanent_storage;
 
   if (!memory->is_initialized) {
-    //    char *file_name = __FILE__;
-    //debug_read_file_result bit_map_memory = DEBUGplatform_read_entire_file(file_name);
-    //    if (bit_map_memory.content_size > 0) {
-      //char *data = "test";
-      //DEBUGplatform_write_entire_file("./test.out", data, 4);
-      //DEBUGplatform_free_file_memory(bit_map_memory.contents);
-    //}
+    char file_name[] = __FILE__;
+    debug_read_file_result bit_map_memory = memory->debug_platform_read_entire_file(file_name);
+    if (bit_map_memory.content_size > 0) {
+      char data[] = "test";
+      memory->debug_platform_write_entire_file("./test.out", &data, 4);
+      memory->debug_platform_free_file_memory(bit_map_memory.contents);
+    }
 
     state->tone_hz = 256;
+    state->t_sine = 0.0f;
     memory->is_initialized = true;
   }
 
@@ -91,7 +89,22 @@ void game_update_and_render(game_memory              *memory,
   renderGradient(buffer, state->x_offset, state->y_offset);
 }
 
-void game_get_sound_samples(game_memory *memory, game_sound_output_buffer *sound_buffer) {
+extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
+{
     game_state *state = (game_state *)memory->permanent_storage;
-    GameOutputSound(sound_buffer, state->tone_hz);
+    GameOutputSound(sound_buffer, state);
 }
+
+// TODO: Check if it's needed
+#if GAME_WIN32
+#include "windows.h"
+BOOL WINAPI DllMain(
+    _In_  HINSTANCE hinstDLL,
+    _In_  DWORD fdwReason,
+    _In_  LPVOID lpvReserved
+                    )
+{
+    return(TRUE);
+}
+
+#endif

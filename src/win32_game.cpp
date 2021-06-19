@@ -1,53 +1,15 @@
 /*
+   GAME_INTERNAL:
+   0 - Build for public realeases
+   1 - Build for development
 
-  TODO: Platform layer
-
-  - saved game locations
-  - getting a handle to our executable file
-  - asset loading path
-  - threading (launch a thread)
-  - raw input ( support for multiple keyboards)
-  - Sleep/timeBeginperiod
-  - clipCursor() (multi monitor)
-  - fullscreen support
-  - VM_SETCURSOR (control cursor visibility)
-  - QueryCancelAutoPlay
-  - WM_ACTIVATEAPP (for when we are not the active application)
-  - Blit speed improvements
-  - Hardware acceleration
-  - GetKeyboardLayout
-
+   GAME_SLOW
+   0 - No slow code allowed
+   1 - Slow code allowed
  */
 
-// Global includes
-#include <stdint.h>
-#include <math.h>
 
-#define Pi32 3.14159265359f
-
-#define local_persist static
-#define global_variable static
-#define internal static
-
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-
-typedef int32 bool32;
-
-typedef float real32;
-typedef double real64;
-
-#include "game.cpp"
-
-// Platform layer includes
+#include "game.h"
 
 #include <strsafe.h>
 #include <windows.h>
@@ -66,6 +28,10 @@ global_variable win32_sound_output global_sound_output = {};
 global_variable int64 global_perf_counter_frequency;
 global_variable bool32 global_pause = false;
 
+
+/**
+   Dynamic load XINPUT
+**/
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef X_INPUT_GET_STATE(x_input_get_state);
 X_INPUT_GET_STATE(xInputGetStateStub)
@@ -90,7 +56,13 @@ global_variable x_input_set_state *XInputSetState_ = xInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 
-debug_read_file_result DEBUGplatform_read_entire_file(char *file_name) {
+DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory_imp) {
+  if (memory) {
+    VirtualFree(memory, 0, MEM_RELEASE);
+  }
+}
+
+DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file_imp) {
   HANDLE file_handle = CreateFileA(file_name,
                                    GENERIC_READ,
                                    FILE_SHARE_READ,
@@ -110,7 +82,7 @@ debug_read_file_result DEBUGplatform_read_entire_file(char *file_name) {
           result.content_size = file_size_32;
         }
         else {
-          DEBUGplatform_free_file_memory(result.contents);
+          debug_platform_free_file_memory_imp(result.contents);
           result.contents = 0;
         }
       }
@@ -123,13 +95,7 @@ debug_read_file_result DEBUGplatform_read_entire_file(char *file_name) {
   return result;
 }
 
-void DEBUGplatform_free_file_memory(void *memory) {
-  if (memory) {
-    VirtualFree(memory, 0, MEM_RELEASE);
-  }
-}
-
-bool32 DEBUGplatform_write_entire_file(char *file_name, void *data, uint32 data_size) {
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file_imp) {
   bool32 is_success = false;
   HANDLE file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
   if (file_handle != INVALID_HANDLE_VALUE) {
@@ -144,6 +110,46 @@ bool32 DEBUGplatform_write_entire_file(char *file_name, void *data, uint32 data_
       CloseHandle(file_handle);
   }
   return is_success;
+}
+
+struct win32_game_code {
+  HMODULE game_code_dll;
+  game_update_and_render *game_update_and_render;
+  game_get_sound_samples *game_get_sound_samples;
+  bool32 is_valid;
+};
+
+internal win32_game_code win32_load_game_code() {
+  win32_game_code result = {};
+
+  bool32 is_copied = CopyFile("game.dll", "game_executing.dll", FALSE);
+
+  if (is_copied) {
+    result.game_code_dll = LoadLibrary("game_executing.dll");
+    if (result.game_code_dll) {
+      result.game_update_and_render = (game_update_and_render*)GetProcAddress(result.game_code_dll, "game_update_and_render_imp");
+      result.game_get_sound_samples = (game_get_sound_samples*)GetProcAddress(result.game_code_dll, "game_get_sound_samples_imp");
+      result.is_valid = (result.game_update_and_render && result.game_get_sound_samples);
+    }
+  }
+
+  if (!result.is_valid) {
+    result.game_update_and_render = game_update_and_render_stub;
+    result.game_get_sound_samples = game_get_sound_samples_stub;
+  }
+
+  return result;
+}
+
+internal void win32_unload_game_code(win32_game_code *game_code) {
+  if (game_code->game_code_dll) {
+    FreeLibrary(game_code->game_code_dll);
+    game_code->game_code_dll = 0;
+  }
+
+  game_code->is_valid = false;
+  game_code->game_update_and_render = game_update_and_render_stub;
+  game_code->game_get_sound_samples = game_get_sound_samples_stub;
 }
 
 internal void win32_loadXinput(void) {
@@ -612,7 +618,9 @@ int CALLBACK WinMain(HINSTANCE instance,
                                                    total_size,
                                                    MEM_RESERVE|MEM_COMMIT,
                                                    PAGE_READWRITE);
-
+      game_memory.debug_platform_read_entire_file = debug_platform_read_entire_file_imp;
+      game_memory.debug_platform_free_file_memory = debug_platform_free_file_memory_imp;
+      game_memory.debug_platform_write_entire_file = debug_platform_write_entire_file_imp;
       global_sound_output.SamplesPerSec = 48000;
       global_sound_output.ToneHz = 256;
       global_sound_output.ToneVolume = 500;
@@ -648,7 +656,16 @@ int CALLBACK WinMain(HINSTANCE instance,
         bool32 sound_is_valid = false;
         LARGE_INTEGER flip_wall_clock = win32_get_wall_clock();
 
+        win32_game_code game_code = win32_load_game_code();
+        uint32 load_counter = 0;
+
         while (Running) {
+
+          if (load_counter++ > 120) {
+            win32_unload_game_code(&game_code);
+            game_code = win32_load_game_code();
+          }
+
 
           game_controller_input *old_keyboard_controller = get_controller(old_input, 0);
           game_controller_input *new_keyboard_controller = get_controller(new_input, 0);
@@ -756,7 +773,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           offscreenBuffer.width = global_back_buffer.width;
           offscreenBuffer.height = global_back_buffer.height;
           offscreenBuffer.pitch = global_back_buffer.pitch;
-          game_update_and_render(&game_memory, &offscreenBuffer, new_input);
+          game_code.game_update_and_render(&game_memory, &offscreenBuffer, new_input);
 
           /*
 
@@ -829,7 +846,7 @@ int CALLBACK WinMain(HINSTANCE instance,
             sound_buffer.samples = samples;
             sound_buffer.tone_hz = global_sound_output.ToneHz;
 
-            game_get_sound_samples(&game_memory, &sound_buffer);
+            game_code.game_get_sound_samples(&game_memory, &sound_buffer);
 
 #if GAME_INTERNAL
             {
@@ -937,6 +954,7 @@ int CALLBACK WinMain(HINSTANCE instance,
             debug_time_marker_index = 0;
           }
 #endif
+
         }
       }
       else {
@@ -949,8 +967,5 @@ int CALLBACK WinMain(HINSTANCE instance,
   }
   else {
   }
-
-
-
   return(0);
 }

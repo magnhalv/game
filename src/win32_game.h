@@ -19,6 +19,7 @@ struct win32_window_dimension {
 struct win32_sound_output {
   int SamplesPerSec;
   int ToneHz;
+  real32 t_sine;
   int ToneVolume;
   uint32 RunningSampleIndex;
   int WavePeriod;
