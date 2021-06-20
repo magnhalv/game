@@ -112,20 +112,27 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file_imp) {
   return is_success;
 }
 
-struct win32_game_code {
-  HMODULE game_code_dll;
-  game_update_and_render *game_update_and_render;
-  game_get_sound_samples *game_get_sound_samples;
-  bool32 is_valid;
-};
+internal FILETIME win32_get_last_write_time(const char *file_name) {
+  FILETIME last_write_time = {};
 
-internal win32_game_code win32_load_game_code() {
+  WIN32_FIND_DATA find_data;
+  HANDLE file_handle = FindFirstFileA(file_name, &find_data);
+  if (file_handle != INVALID_HANDLE_VALUE) {
+    last_write_time = find_data.ftLastWriteTime;
+    FindClose(file_handle);
+  }
+
+  return last_write_time;
+}
+
+internal win32_game_code win32_load_game_code(const char *dll_path, const char *temp_dll_path) {
   win32_game_code result = {};
+  result.last_write_time = win32_get_last_write_time(dll_path);
 
-  bool32 is_copied = CopyFile("game.dll", "game_executing.dll", FALSE);
+  bool32 is_copied = CopyFile(dll_path, temp_dll_path, FALSE);
 
   if (is_copied) {
-    result.game_code_dll = LoadLibrary("game_executing.dll");
+    result.game_code_dll = LoadLibrary(temp_dll_path);
     if (result.game_code_dll) {
       result.game_update_and_render = (game_update_and_render*)GetProcAddress(result.game_code_dll, "game_update_and_render_imp");
       result.game_get_sound_samples = (game_get_sound_samples*)GetProcAddress(result.game_code_dll, "game_get_sound_samples_imp");
@@ -559,11 +566,46 @@ inline void  win32_debug_sync_display(win32_offscreen_buffer *back_buffer,
   }
 }
 
+void concat_strings(int a_count, const char *a, int b_count, const char *b, int dest_count, char *dest) {
+  Assert ((a_count + b_count) <= dest_count);
+  for (int i = 0; i < a_count; i++) {
+    *dest++ = a[i];
+  }
+
+  for (int i = 0; i < a_count; i++) {
+    *dest++ = b[i];
+  }
+
+  *dest++ = 0;
+}
+
 int CALLBACK WinMain(HINSTANCE instance,
 	HINSTANCE PrevInstance,
 	LPSTR CommandLine,
 	int ShowCode)
 {
+  char exe_path[MAX_PATH];
+  DWORD exe_path_size = GetModuleFileNameA(0, exe_path, sizeof(exe_path));
+  char *exe_file_name = exe_path;
+  for (char *scan = exe_path; *scan; scan++) {
+    if (*scan == '\\') {
+      exe_file_name = scan + 1;
+    }
+  }
+
+  int root_path_size = (int)(exe_file_name - exe_path);
+  char dll_filename [] = "game.dll";
+  char dll_path[MAX_PATH];
+  concat_strings(root_path_size, exe_path,
+                 sizeof(dll_filename)-1, dll_filename,
+                 sizeof(dll_path), dll_path);
+
+  char temp_dll_filename [] = "game_temp.dll";
+  char temp_dll_path[MAX_PATH];
+  concat_strings(root_path_size, exe_path,
+                 sizeof(temp_dll_filename)-1, temp_dll_filename,
+                 sizeof(temp_dll_path), temp_dll_path);
+
   LARGE_INTEGER global_perf_counter_frequencyResult;
   QueryPerformanceFrequency(&global_perf_counter_frequencyResult);
   global_perf_counter_frequency = global_perf_counter_frequencyResult.QuadPart;
@@ -630,7 +672,6 @@ int CALLBACK WinMain(HINSTANCE instance,
       global_sound_output.SecondaryBufferSize = global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample;
       global_sound_output.TSine = 0;
       global_sound_output.WriteAheadSize = frames_of_audio_latency*(global_sound_output.SamplesPerSec / game_update_hz);
-
       global_sound_output.safety_bytes = ((global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample)/game_update_hz)/3;
       game_memory.transient_storage = ((uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size);
       // used by game sound output
@@ -656,14 +697,15 @@ int CALLBACK WinMain(HINSTANCE instance,
         bool32 sound_is_valid = false;
         LARGE_INTEGER flip_wall_clock = win32_get_wall_clock();
 
-        win32_game_code game_code = win32_load_game_code();
+        win32_game_code game_code = win32_load_game_code(dll_path, temp_dll_path);
         uint32 load_counter = 0;
 
         while (Running) {
 
-          if (load_counter++ > 120) {
+          FILETIME new_dll_write_time = win32_get_last_write_time(dll_path);
+          if (CompareFileTime(&new_dll_write_time, &game_code.last_write_time) != 0) {
             win32_unload_game_code(&game_code);
-            game_code = win32_load_game_code();
+            game_code = win32_load_game_code(dll_path, temp_dll_path);
           }
 
 
