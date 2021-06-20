@@ -25,7 +25,7 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
     for (int x = 0; x < buffer->width; x++) {
       uint8 blue = (uint8)(x + xOffset);
       uint8 green = (uint8)(y + yOffset);
-      *pixel++ = ((green << 16) | blue);
+      *pixel++ = ((green << 0) | blue);
     }
     row += buffer->pitch;
   }
@@ -94,17 +94,3 @@ extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
     game_state *state = (game_state *)memory->permanent_storage;
     GameOutputSound(sound_buffer, state);
 }
-
-// TODO: Check if it's needed
-#if GAME_WIN32
-#include "windows.h"
-BOOL WINAPI DllMain(
-    _In_  HINSTANCE hinstDLL,
-    _In_  DWORD fdwReason,
-    _In_  LPVOID lpvReserved
-                    )
-{
-    return(TRUE);
-}
-
-#endif
