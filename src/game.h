@@ -166,6 +166,9 @@ struct game_state {
   int y_offset;
   int tone_hz;
   real32 t_sine;
+
+  int player_x;
+  int player_y;
 };
 
 #define GAME_H

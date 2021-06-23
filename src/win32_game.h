@@ -50,5 +50,20 @@ struct win32_game_code {
   FILETIME last_write_time;
 };
 
+struct win32_recorded_input {
+
+};
+
+struct win32_state {
+  uint64 total_size;
+  void *game_memory_block;
+
+  HANDLE recording_handle;
+  int input_recording_index;
+  HANDLE playback_handle;
+  int input_playback_index;
+};
+
+
 #define WIN32_GAME_H
 #endif

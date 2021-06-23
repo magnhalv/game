@@ -6,13 +6,15 @@ internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state
 
   int16 *sampleOut = sound_buffer->samples;
   for (int sampleIndex = 0; sampleIndex < sound_buffer->sample_count; sampleIndex++) {
-
-
-
     real32 sineValue = sinf(state->t_sine);
     int16 sampleValue = (int16)(sineValue * tone_volume);
+#if 0
     *sampleOut++ = sampleValue;
     *sampleOut++ = sampleValue;
+#elseif
+    *sampleOut++ = 0;
+    *sampleOut++ = 0;
+#endif
 
     state->t_sine += (1.0f/(real32)wave_period) * 2.0f * Pi32;
   }
@@ -25,9 +27,22 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
     for (int x = 0; x < buffer->width; x++) {
       uint8 blue = (uint8)(x + xOffset);
       uint8 green = (uint8)(y + yOffset);
-      *pixel++ = ((green << 16) | blue);
+      *pixel++ = ((green << 8) | blue);
     }
     row += buffer->pitch;
+  }
+}
+
+internal void render_player(game_offscreen_buffer *buffer, game_state *state) {
+  uint32 color = 0xFFFFFFFF;
+  int top = state->player_y;
+  int bottom = state->player_y + 20;
+  for (int y = top; y < bottom; y++) {
+    uint8 *pixel = ((uint8 *)buffer->memory + y*buffer->pitch + state->player_x*buffer->bytes_per_pixel);
+    for (int x = 0; x < 20; x++) {
+      *(uint32*) pixel = color;
+      pixel += buffer->bytes_per_pixel;
+    }
   }
 }
 
@@ -57,36 +72,43 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     state->tone_hz = 256;
     state->t_sine = 0.0f;
     memory->is_initialized = true;
+
+    state->player_x = 300;
+    state->player_y = 300;
   }
 
   for(int controller_index = 0; controller_index < ArrayCount(input->controllers); controller_index++) {
     game_controller_input *controller  = get_controller(input, controller_index);
     if (controller->is_analog) {
       state->tone_hz = 256 + (int)(128.0f*(controller->stick_average_x));
-      state->y_offset += (int)(4.0f*(controller->stick_average_y));
+      //state->y_offset += (int)(4.0f*(controller->stick_average_y));
+
+      state->player_x += (int)controller->stick_average_x*2;
+      state->player_y -= (int)controller->stick_average_y*2;
     }
     else {
     }
 
 
     if (controller->move_up.ended_down) {
-      state->y_offset -= 5;
+      state->player_y += -4;
     }
     if (controller->move_down.ended_down) {
-      state->y_offset += 5;
+      state->player_y += 4;
       state->tone_hz = 256;
     }
     if (controller->move_left.ended_down) {
-      state->x_offset -= 5;
+      state->player_x += -4;
       state->tone_hz = 256 - 128;
     }
     if (controller->move_right.ended_down) {
-      state->x_offset += 5;
+      state->player_x += 4;
       state->tone_hz = 256 + 128;
     }
   }
 
   renderGradient(buffer, state->x_offset, state->y_offset);
+  render_player(buffer, state);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)

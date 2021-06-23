@@ -3,3 +3,5 @@ build
 .vs
 data/*
 test.out
+
+**/recording.hmi

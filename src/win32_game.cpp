@@ -297,7 +297,12 @@ internal LRESULT CALLBACK WindowProcCallback(HWND window,
     Running = false;
     break;
   case WM_ACTIVATEAPP:
-    OutputDebugStringA("WM_ACTIVATEAPP\n");
+    if (wParam == TRUE) {
+      SetLayeredWindowAttributes(window, RGB(0, 0, 0), 255, LWA_ALPHA);
+    }
+    else {
+      SetLayeredWindowAttributes(window, RGB(0, 0, 0), 64, LWA_ALPHA);
+    }
     break;
 
   case WM_SYSKEYDOWN:
@@ -383,6 +388,61 @@ void win32_clear_sound_buffer(win32_sound_output *sound_output)
   }
 }
 
+internal void win32_begin_recording_input(win32_state *state, int input_recording_index) {
+  state->input_recording_index = input_recording_index;
+  char filename[] = "recording.hmi";
+  state->recording_handle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+
+  DWORD bytes_to_write = (DWORD)state->total_size;
+  Assert(state->total_size == bytes_to_write);
+  DWORD bytes_written;
+  WriteFile(state->recording_handle, state->game_memory_block, bytes_to_write, &bytes_written, 0);
+}
+
+internal void win32_end_recording_input(win32_state *state) {
+  CloseHandle(state->recording_handle);
+  state->input_recording_index = 0;
+}
+
+internal void win32_begin_playback_input(win32_state *state, int input_playback_index) {
+  state->input_playback_index = input_playback_index;
+  char filename[] = "recording.hmi";
+  state->playback_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+
+  DWORD bytes_to_read = (DWORD)state->total_size;
+  Assert(state->total_size == bytes_to_read);
+  DWORD bytes_read;
+  if (!ReadFile(state->playback_handle, state->game_memory_block, bytes_to_read, &bytes_read, 0)) {
+    OutputDebugStringA("Failed to load memory block.");
+  }
+}
+
+internal void win32_end_playback_input(win32_state *state) {
+  CloseHandle(state->playback_handle);
+  state->input_playback_index = 0;
+}
+
+internal void win32_record_input(win32_state *state, game_input *input) {
+  DWORD bytes_written;
+  WriteFile(state->recording_handle, input, sizeof(*input), &bytes_written, 0);
+}
+
+internal void win32_playback_input(win32_state *state, game_input *input) {
+  DWORD bytes_read;
+  if (ReadFile(state->playback_handle, input, sizeof(*input), &bytes_read, 0)) {
+    if (bytes_read == 0) {
+      int playing_index = state->input_playback_index;
+      win32_end_playback_input(state);
+      win32_begin_playback_input(state, playing_index);
+      ReadFile(state->playback_handle, input, sizeof(*input), &bytes_read, 0);
+    }
+  }
+  else {
+
+  }
+}
+
+
 internal void win32_process_x_input_button(DWORD x_input_button_state,
                                            game_button_state *old_state,
                                            DWORD button_bit,
@@ -398,7 +458,9 @@ internal void win32_process_keyboard_message(game_button_state *new_state,
   new_state->half_transition_count++;
 }
 
-internal void win32_process_pending_messages(game_controller_input *keyboard_controller) {
+
+
+internal void win32_process_pending_messages(win32_state *win32_state, game_controller_input *keyboard_controller) {
   MSG message;
   while(PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
     switch (message.message) {
@@ -448,6 +510,17 @@ internal void win32_process_pending_messages(game_controller_input *keyboard_con
 #if GAME_INTERNAL
           if (vk_code == 'P' && is_down) {
             global_pause = !global_pause;
+          }
+          if (vk_code == 'R') {
+            if (is_down) {
+              if (win32_state->input_recording_index == 0) {
+                win32_begin_recording_input(win32_state, 1);
+              }
+              else {
+                win32_end_recording_input(win32_state);
+                win32_begin_playback_input(win32_state, 1);
+              }
+            }
           }
 #endif
 
@@ -629,7 +702,7 @@ int CALLBACK WinMain(HINSTANCE instance,
 
   if (RegisterClass(&windowClass)) {
     HWND window =
-      CreateWindowExA(0,
+      CreateWindowExA(WS_EX_TOPMOST|WS_EX_LAYERED,
                       windowClass.lpszClassName,
                       "Game",
                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
@@ -644,8 +717,6 @@ int CALLBACK WinMain(HINSTANCE instance,
     win32_window_dimension dimension = win32_get_window_dimension(window);
     win32_ResizeDIBSection(&global_back_buffer, 1280, 720);
     if (window) {
-      Running = true;
-
 #if GAME_INTERNAL
       LPVOID base_address = (LPVOID)Terabytes((uint64)2);
 #else
@@ -654,12 +725,16 @@ int CALLBACK WinMain(HINSTANCE instance,
 
       game_memory game_memory = {};
       game_memory.permanent_storage_size = Megabytes(64);
-      game_memory.transient_storage_size = Gigabytes((uint64)4);
-      uint64 total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
-      game_memory.permanent_storage = VirtualAlloc(base_address,
-                                                   total_size,
+      game_memory.transient_storage_size = Gigabytes((uint64)1);
+
+      win32_state win32_state = {};
+      win32_state.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
+      win32_state.game_memory_block = VirtualAlloc(base_address,
+                                                   win32_state.total_size,
                                                    MEM_RESERVE|MEM_COMMIT,
                                                    PAGE_READWRITE);
+
+      game_memory.permanent_storage = win32_state.game_memory_block;
       game_memory.debug_platform_read_entire_file = debug_platform_read_entire_file_imp;
       game_memory.debug_platform_free_file_memory = debug_platform_free_file_memory_imp;
       game_memory.debug_platform_write_entire_file = debug_platform_write_entire_file_imp;
@@ -698,7 +773,8 @@ int CALLBACK WinMain(HINSTANCE instance,
         LARGE_INTEGER flip_wall_clock = win32_get_wall_clock();
 
         win32_game_code game_code = win32_load_game_code(dll_path, temp_dll_path);
-        uint32 load_counter = 0;
+
+        Running = true;
 
         while (Running) {
 
@@ -723,7 +799,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           }
 
 
-          win32_process_pending_messages(new_keyboard_controller);
+          win32_process_pending_messages(&win32_state, new_keyboard_controller);
 
           // TODO: Avoid polling disconnected controllers to avoid xinput framerate hit on older libraries
           DWORD max_controller_count = XUSER_MAX_COUNT;
@@ -815,6 +891,15 @@ int CALLBACK WinMain(HINSTANCE instance,
           offscreenBuffer.width = global_back_buffer.width;
           offscreenBuffer.height = global_back_buffer.height;
           offscreenBuffer.pitch = global_back_buffer.pitch;
+          offscreenBuffer.bytes_per_pixel = global_back_buffer.bytes_per_pixel;
+
+          if (win32_state.input_recording_index) {
+            win32_record_input(&win32_state, new_input);
+          }
+
+          if (win32_state.input_playback_index) {
+            win32_playback_input(&win32_state, new_input);
+          }
           game_code.game_update_and_render(&game_memory, &offscreenBuffer, new_input);
 
           /*
@@ -955,16 +1040,12 @@ int CALLBACK WinMain(HINSTANCE instance,
           uint64 cycles_elapsed =  end_cycle_count - last_cycle_count;
           last_cycle_count = end_cycle_count;
 
-          // Test sound
-          // TODO: Check for reuse
-          HDC deviceContext = GetDC(window);
-
 #if GAME_INTERNAL
           win32_debug_sync_display(&global_back_buffer, ArrayCount(debug_time_markers), debug_time_markers, debug_time_marker_index-1, &global_sound_output, target_seconds_per_frame);
 #endif
-
-          win32_DisplayBufferInWindows(deviceContext, dimension.width, dimension.height, global_back_buffer, 0, 0, dimension.width, dimension.height);
-          ReleaseDC(window, deviceContext);
+          HDC device_context = GetDC(window);
+          win32_DisplayBufferInWindows(device_context, dimension.width, dimension.height, global_back_buffer, 0, 0, dimension.width, dimension.height);
+          ReleaseDC(window, device_context);
 
           flip_wall_clock = win32_get_wall_clock();
 
