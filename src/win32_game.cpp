@@ -274,7 +274,7 @@ win32_DisplayBufferInWindows(HDC deviceContext,
   StretchDIBits(deviceContext,
                 //                x, y, width, height,
                 //                x, y, width, height,
-                0, 0, window_width, window_height,
+                0, 0, buffer.width, buffer.height,
                 0, 0, buffer.width, buffer.height,
                 buffer.memory,
                 &buffer.Info,
@@ -652,32 +652,43 @@ void concat_strings(int a_count, const char *a, int b_count, const char *b, int 
   *dest++ = 0;
 }
 
+internal int  string_length(const char *string) {
+  int count = 0;
+  while (*string++) {
+    count++;
+  }
+  return count;
+}
+
+internal void win32_get_exe_filename(win32_state *state) {
+  GetModuleFileNameA(0, state->exe_file_path, sizeof(state->exe_file_path));
+  state->exe_filename = state->exe_file_path;
+  for (char *scan = state->exe_file_path; *scan; scan++) {
+    if (*scan == '\\') {
+      state->exe_filename = scan + 1;
+    }
+  }
+}
+
+internal void win32_build_exe_path_filename (win32_state *state, const char *filename, int dest_count, char *dest) {
+  int count_until_root_dir = (int)(state->exe_filename - state->exe_file_path);
+  concat_strings(count_until_root_dir, state->exe_file_path,
+                 string_length(filename), filename,
+                 dest_count, dest);
+}
+
 int CALLBACK WinMain(HINSTANCE instance,
 	HINSTANCE PrevInstance,
 	LPSTR CommandLine,
 	int ShowCode)
 {
-  char exe_path[MAX_PATH];
-  DWORD exe_path_size = GetModuleFileNameA(0, exe_path, sizeof(exe_path));
-  char *exe_file_name = exe_path;
-  for (char *scan = exe_path; *scan; scan++) {
-    if (*scan == '\\') {
-      exe_file_name = scan + 1;
-    }
-  }
 
-  int root_path_size = (int)(exe_file_name - exe_path);
-  char dll_filename [] = "game.dll";
-  char dll_path[MAX_PATH];
-  concat_strings(root_path_size, exe_path,
-                 sizeof(dll_filename)-1, dll_filename,
-                 sizeof(dll_path), dll_path);
-
-  char temp_dll_filename [] = "game_temp.dll";
-  char temp_dll_path[MAX_PATH];
-  concat_strings(root_path_size, exe_path,
-                 sizeof(temp_dll_filename)-1, temp_dll_filename,
-                 sizeof(temp_dll_path), temp_dll_path);
+  win32_state win32_state = {};
+  win32_get_exe_filename(&win32_state);
+  char dll_path[WIN32_STATE_FILE_NAME_COUNT];
+  win32_build_exe_path_filename(&win32_state, "game.dll", sizeof(dll_path), dll_path);
+  char temp_dll_path[WIN32_STATE_FILE_NAME_COUNT];
+  win32_build_exe_path_filename(&win32_state, "game_temp.dll", sizeof(temp_dll_path), temp_dll_path);
 
   LARGE_INTEGER global_perf_counter_frequencyResult;
   QueryPerformanceFrequency(&global_perf_counter_frequencyResult);
@@ -727,7 +738,6 @@ int CALLBACK WinMain(HINSTANCE instance,
       game_memory.permanent_storage_size = Megabytes(64);
       game_memory.transient_storage_size = Gigabytes((uint64)1);
 
-      win32_state win32_state = {};
       win32_state.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
       win32_state.game_memory_block = VirtualAlloc(base_address,
                                                    win32_state.total_size,
@@ -815,11 +825,10 @@ int CALLBACK WinMain(HINSTANCE instance,
 
             XINPUT_STATE controllerState;
             if(XInputGetState(controller_index, &controllerState) != ERROR_DEVICE_NOT_CONNECTED) {
+
               new_controller->is_connected = true;
               XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
-
-
-              new_controller->is_analog = true;
+              new_controller->is_analog = old_controller->is_analog;
               new_controller->stick_average_x = win32_process_x_input_stick_value(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
               new_controller->stick_average_y = win32_process_x_input_stick_value(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
 
