@@ -68,6 +68,7 @@ struct win32_state {
 
   char exe_file_path[WIN32_STATE_FILE_NAME_COUNT];
   char *exe_filename;
+  char recording_file_path[WIN32_STATE_FILE_NAME_COUNT];
 };
 
 
