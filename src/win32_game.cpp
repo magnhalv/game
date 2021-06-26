@@ -106,7 +106,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file_imp) {
           result.content_size = file_size_32;
         }
         else {
-          debug_platform_free_file_memory_imp(result.contents);
+          debug_platform_free_file_memory_imp(thread, result.contents);
           result.contents = 0;
         }
       }
@@ -744,6 +744,7 @@ int CALLBACK WinMain(HINSTANCE instance,
       LPVOID base_address = 0;
 #endif
 
+      thread_context thread = {};
       game_memory game_memory = {};
       game_memory.permanent_storage_size = Megabytes(64);
       game_memory.transient_storage_size = Gigabytes((uint64)1);
@@ -920,7 +921,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           }
 
           if (game_code.game_update_and_render) {
-            game_code.game_update_and_render(&game_memory, &offscreenBuffer, new_input);
+            game_code.game_update_and_render(&thread, &game_memory, &offscreenBuffer, new_input);
           }
 
 
@@ -996,7 +997,7 @@ int CALLBACK WinMain(HINSTANCE instance,
             sound_buffer.tone_hz = global_sound_output.ToneHz;
 
             if (game_code.game_get_sound_samples) {
-              game_code.game_get_sound_samples(&game_memory, &sound_buffer);
+              game_code.game_get_sound_samples(&thread, &game_memory, &sound_buffer);
             }
 
 #if GAME_INTERNAL

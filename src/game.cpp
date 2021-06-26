@@ -62,11 +62,11 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   if (!memory->is_initialized) {
     char file_name[] = __FILE__;
-    debug_read_file_result bit_map_memory = memory->debug_platform_read_entire_file(file_name);
+    debug_read_file_result bit_map_memory = memory->debug_platform_read_entire_file(thread, file_name);
     if (bit_map_memory.content_size > 0) {
       char data[] = "test";
-      memory->debug_platform_write_entire_file("./test.out", &data, 4);
-      memory->debug_platform_free_file_memory(bit_map_memory.contents);
+      memory->debug_platform_write_entire_file(thread, "./test.out", &data, 4);
+      memory->debug_platform_free_file_memory(thread, bit_map_memory.contents);
     }
 
     state->tone_hz = 256;
