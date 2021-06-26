@@ -710,11 +710,6 @@ int CALLBACK WinMain(HINSTANCE instance,
   //  WindowClass.hIcon;
   windowClass.lpszClassName = "GameWindowClass";
 
-#define frames_of_audio_latency 4
-#define monitor_refresh_hz 60
-#define game_update_hz (monitor_refresh_hz / 2)
-  real32 target_seconds_per_frame = 1.0f / (real32)monitor_refresh_hz;
-
   if (RegisterClass(&windowClass)) {
     HWND window =
       CreateWindowExA(WS_EX_TOPMOST|WS_EX_LAYERED,
@@ -732,6 +727,17 @@ int CALLBACK WinMain(HINSTANCE instance,
     win32_window_dimension dimension = win32_get_window_dimension(window);
     win32_ResizeDIBSection(&global_back_buffer, 1280, 720);
     if (window) {
+      HDC refresh_dc = GetDC(window);
+      int monitor_refresh_hz = 60;
+      int win32_refresh_rate = GetDeviceCaps(refresh_dc, VREFRESH);
+      ReleaseDC(window, refresh_dc);
+      if (win32_refresh_rate > 1) {
+        monitor_refresh_hz = win32_refresh_rate;
+      }
+      real32 game_update_hz = (monitor_refresh_hz / 2.0f);
+      real32 target_seconds_per_frame = 1.0f / (real32)monitor_refresh_hz;
+
+      // Setup memory, state, and audio
 #if GAME_INTERNAL
       LPVOID base_address = (LPVOID)Terabytes((uint64)2);
 #else
@@ -760,8 +766,7 @@ int CALLBACK WinMain(HINSTANCE instance,
       global_sound_output.BytesPerSample = sizeof(int16)*2;
       global_sound_output.SecondaryBufferSize = global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample;
       global_sound_output.TSine = 0;
-      global_sound_output.WriteAheadSize = frames_of_audio_latency*(global_sound_output.SamplesPerSec / game_update_hz);
-      global_sound_output.safety_bytes = ((global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample)/game_update_hz)/3;
+      global_sound_output.safety_bytes = (int)(((real32)global_sound_output.SamplesPerSec*(real32)global_sound_output.BytesPerSample)/game_update_hz)/3;
       game_memory.transient_storage = ((uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size);
       // used by game sound output
       int16 *samples = (int16 *)VirtualAlloc(0, global_sound_output.SecondaryBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -782,7 +787,7 @@ int CALLBACK WinMain(HINSTANCE instance,
         real32 audio_latency_in_seconds = 0;
 
         int debug_time_marker_index = 0;
-        win32_debug_time_marker debug_time_markers[game_update_hz] = {};
+        win32_debug_time_marker debug_time_markers[30] = {};
         bool32 sound_is_valid = false;
         LARGE_INTEGER flip_wall_clock = win32_get_wall_clock();
 
@@ -953,7 +958,7 @@ int CALLBACK WinMain(HINSTANCE instance,
 
             DWORD byte_to_lock = (global_sound_output.RunningSampleIndex*global_sound_output.BytesPerSample) % global_sound_output.SecondaryBufferSize;
 
-            DWORD expected_sound_bytes_per_frame = (global_sound_output.SamplesPerSec*global_sound_output.BytesPerSample) / game_update_hz;
+            DWORD expected_sound_bytes_per_frame = (DWORD)(((real32)global_sound_output.SamplesPerSec*(real32)global_sound_output.BytesPerSample) / game_update_hz);
             real32 seconds_left_until_flip = (target_seconds_per_frame - from_begin_to_audio_seconds);
             DWORD expected_bytes_until_flip = (DWORD)((seconds_left_until_flip/target_seconds_per_frame)*(real32)expected_sound_bytes_per_frame);
             DWORD expected_frame_boundry_byte = play_cursor + expected_bytes_until_flip;

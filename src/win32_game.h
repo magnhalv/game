@@ -27,7 +27,6 @@ struct win32_sound_output {
   DWORD SecondaryBufferSize;
   bool IsSoundPlaying;
   real32 TSine;
-  int WriteAheadSize;
   DWORD safety_bytes;
 };
 
