@@ -129,6 +129,11 @@ struct game_clocks {
 };
 
 struct game_input {
+  uint32 mouse_bottons;
+  int32 mouse_x;
+  int32 mouse_y;
+  int32 mouse_z;
+  game_button_state mouse_buttons[2];
   game_controller_input controllers[5]; // 4 + keyboard
   //  game_clocks clocks;
 };

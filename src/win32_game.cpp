@@ -493,9 +493,10 @@ internal void win32_process_x_input_button(DWORD x_input_button_state,
 
 internal void win32_process_keyboard_message(game_button_state *new_state,
                                              bool32 is_down) {
-  Assert(new_state->ended_down != is_down);
-  new_state->ended_down = is_down;
-  new_state->half_transition_count++;
+  if (new_state->ended_down != is_down) {
+    new_state->ended_down = is_down;
+    new_state->half_transition_count++;
+  }
 }
 
 
@@ -821,6 +822,14 @@ int CALLBACK WinMain(HINSTANCE instance,
 
           win32_process_pending_messages(&win32_state, new_keyboard_controller);
 
+          POINT mouse_point;
+          GetCursorPos(&mouse_point);
+          ScreenToClient(window, &mouse_point);
+          new_input->mouse_x = mouse_point.x;
+          new_input->mouse_y = mouse_point.y;
+          new_input->mouse_z = 0;
+          win32_process_keyboard_message(&new_input->mouse_buttons[0], GetKeyState(VK_LBUTTON) & (1 << 15));
+
           // TODO: Avoid polling disconnected controllers to avoid xinput framerate hit on older libraries
           DWORD max_controller_count = XUSER_MAX_COUNT;
           if (max_controller_count > (ArrayCount(new_input->controllers)-1)) {
@@ -904,6 +913,8 @@ int CALLBACK WinMain(HINSTANCE instance,
           if (global_pause) {
             continue;
           }
+
+
 
           game_offscreen_buffer offscreenBuffer = {};
           offscreenBuffer.memory = global_back_buffer.memory;
