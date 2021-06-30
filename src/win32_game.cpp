@@ -563,16 +563,22 @@ internal void win32_process_pending_messages(win32_state *win32_state, game_cont
           if (vk_code == 'P' && is_down) {
             global_pause = !global_pause;
           }
-          if (vk_code == 'R') {
-            if (is_down) {
-              if (win32_state->input_recording_index == 0) {
-                win32_begin_recording_input(win32_state, 1);
-              }
-              else {
-                win32_end_recording_input(win32_state);
-                win32_begin_playback_input(win32_state, 1);
-              }
+          if (vk_code == 'R' && is_down) {
+            if (win32_state->input_recording_index == 0) {
+              win32_begin_recording_input(win32_state, 1);
             }
+            else {
+              win32_end_recording_input(win32_state);
+            }
+          }
+          if (vk_code == 'T' && is_down) {
+            if (win32_state->input_recording_index == 0 && win32_state->input_playback_index == 0) {
+              win32_begin_playback_input(win32_state, 1);
+            }
+            else if (win32_state->input_playback_index) {
+              win32_end_playback_input(win32_state);
+            }
+
           }
 #endif
 
@@ -943,6 +949,7 @@ int CALLBACK WinMain(HINSTANCE instance,
 
           game_offscreen_buffer offscreenBuffer = {};
           offscreenBuffer.memory = global_back_buffer.memory;
+          offscreenBuffer.memory_size = global_back_buffer.memorySize;
           offscreenBuffer.width = global_back_buffer.width;
           offscreenBuffer.height = global_back_buffer.height;
           offscreenBuffer.pitch = global_back_buffer.pitch;

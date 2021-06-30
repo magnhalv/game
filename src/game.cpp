@@ -8,7 +8,7 @@ internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state
   for (int sampleIndex = 0; sampleIndex < sound_buffer->sample_count; sampleIndex++) {
     real32 sineValue = sinf(state->t_sine);
     int16 sampleValue = (int16)(sineValue * tone_volume);
-#if 1
+#if 0
     *sampleOut++ = sampleValue;
     *sampleOut++ = sampleValue;
 #else
@@ -34,11 +34,26 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
 }
 
 internal void render_player(game_offscreen_buffer *buffer, int player_x, int player_y, uint32 color) {
+  const int size = 20;
+  if (player_x < 0) {
+    player_x = 0;
+  }
+  if (player_x > buffer->width - size) {
+    player_x = buffer->width - size;
+  }
+
+  if (player_y < 0) {
+    player_y = 0;
+  }
+  if (player_y > buffer->height - size) {
+    player_y = buffer->height - size;
+  }
+
   int top = player_y;
-  int bottom = player_y + 20;
+  int bottom = player_y + size;
   for (int y = top; y < bottom; y++) {
     uint8 *pixel = ((uint8 *)buffer->memory + y*buffer->pitch + player_x*buffer->bytes_per_pixel);
-    for (int x = 0; x < 20; x++) {
+    for (int x = 0; x < size; x++) {
       *(uint32*) pixel = color;
       pixel += buffer->bytes_per_pixel;
     }
@@ -120,6 +135,6 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
 {
-    game_state *state = (game_state *)memory->permanent_storage;
-    GameOutputSound(sound_buffer, state);
+  game_state *state = (game_state *)memory->permanent_storage;
+  GameOutputSound(sound_buffer, state);
 }

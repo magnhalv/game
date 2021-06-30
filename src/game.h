@@ -73,7 +73,7 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 struct game_offscreen_buffer {
   //  BITMAPINFO Info;
   void *memory;
-  int   memory_ize;
+  int   memory_size;
   int   width;
   int   height;
   int   bytes_per_pixel;
