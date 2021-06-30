@@ -474,6 +474,10 @@ internal void win32_end_playback_input(win32_state *state) {
   state->input_playback_index = 0;
 }
 
+internal void win32_signal_end_playback_input(win32_state *state) {
+  state->input_playback_index = -1;
+}
+
 internal void win32_record_input(win32_state *state, game_input *input) {
   DWORD bytes_written;
   WriteFile(state->recording_handle, input, sizeof(*input), &bytes_written, 0);
@@ -576,7 +580,7 @@ internal void win32_process_pending_messages(win32_state *win32_state, game_cont
               win32_begin_playback_input(win32_state, 1);
             }
             else if (win32_state->input_playback_index) {
-              win32_end_playback_input(win32_state);
+              win32_signal_end_playback_input(win32_state);
             }
 
           }
@@ -957,6 +961,14 @@ int CALLBACK WinMain(HINSTANCE instance,
 
           if (win32_state.input_recording_index) {
             win32_record_input(&win32_state, new_input);
+          }
+
+          if (win32_state.input_playback_index == -1) {
+            // TODO: Find a better way to do this.
+            // If you stop the playback in the middle of it, the previous playback_input will dominate,
+            // and get stuck on that. Perhaps rewrite keyboard handling.
+            *new_input = {};
+            win32_end_playback_input(&win32_state);
           }
 
           if (win32_state.input_playback_index) {
