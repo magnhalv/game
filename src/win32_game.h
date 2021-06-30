@@ -49,16 +49,19 @@ struct win32_game_code {
   FILETIME last_write_time;
 };
 
-struct win32_recorded_input {
-
-};
-
-
 #define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
+
+struct win32_replay_buffer {
+  HANDLE file_handle;
+  HANDLE memory_map;
+  char file_path[WIN32_STATE_FILE_NAME_COUNT];
+  void *state_memory_block;
+};
 
 struct win32_state {
   uint64 total_size;
   void *game_memory_block;
+  win32_replay_buffer replay_buffers[4];
 
   HANDLE recording_handle;
   int input_recording_index;
@@ -67,7 +70,6 @@ struct win32_state {
 
   char exe_file_path[WIN32_STATE_FILE_NAME_COUNT];
   char *exe_filename;
-  char recording_file_path[WIN32_STATE_FILE_NAME_COUNT];
 };
 
 

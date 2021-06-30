@@ -426,19 +426,29 @@ internal void win32_build_exe_path_filename (win32_state *state, const char *fil
                  dest_count, dest);
 }
 
-internal void win32_get_recording_file_location(win32_state *state, int slot_index) {
-  Assert(slot_index == 1) // TODO: Support this
-  win32_build_exe_path_filename(state, "recording.hmi", WIN32_STATE_FILE_NAME_COUNT, state->recording_file_path);
+internal void win32_get_recording_file_location(win32_state *state, bool32 isInputStream, int slot_index, int dest_path, char *dest) {
+  char filename[64];
+  wsprintf(filename, "recording_%d_%s.hmi", slot_index, isInputStream ? "input" : "state");
+  win32_build_exe_path_filename(state, filename, dest_path, dest);
+}
+
+internal win32_replay_buffer* win32_get_replay_buffer(win32_state *state, int unsigned index) {
+  Assert(index < ArrayCount(state->replay_buffers));
+  win32_replay_buffer *replay_buffer = &state->replay_buffers[index];
+  return replay_buffer;
 }
 
 internal void win32_begin_recording_input(win32_state *state, int input_recording_index) {
-  state->input_recording_index = input_recording_index;
-  state->recording_handle = CreateFileA(state->recording_file_path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+  Assert(input_recording_index >= 1);
+  win32_replay_buffer *replay_buffer = win32_get_replay_buffer(state, input_recording_index);
+  if (replay_buffer->state_memory_block) {
+    state->input_recording_index = input_recording_index;
 
-  DWORD bytes_to_write = (DWORD)state->total_size;
-  Assert(state->total_size == bytes_to_write);
-  DWORD bytes_written;
-  WriteFile(state->recording_handle, state->game_memory_block, bytes_to_write, &bytes_written, 0);
+    char filename[WIN32_STATE_FILE_NAME_COUNT];
+    win32_get_recording_file_location(state, true, input_recording_index, sizeof(filename), filename);
+    state->recording_handle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    CopyMemory(replay_buffer->state_memory_block, state->game_memory_block, state->total_size);
+  }
 }
 
 internal void win32_end_recording_input(win32_state *state) {
@@ -447,14 +457,15 @@ internal void win32_end_recording_input(win32_state *state) {
 }
 
 internal void win32_begin_playback_input(win32_state *state, int input_playback_index) {
-  state->input_playback_index = input_playback_index;
-  state->playback_handle = CreateFileA(state->recording_file_path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+  Assert(input_playback_index >= 1);
+  win32_replay_buffer *replay_buffer = win32_get_replay_buffer(state, input_playback_index);
+  if (replay_buffer->state_memory_block) {
+    state->input_playback_index = input_playback_index;
 
-  DWORD bytes_to_read = (DWORD)state->total_size;
-  Assert(state->total_size == bytes_to_read);
-  DWORD bytes_read;
-  if (!ReadFile(state->playback_handle, state->game_memory_block, bytes_to_read, &bytes_read, 0)) {
-    OutputDebugStringA("Failed to load memory block.");
+    char filename[WIN32_STATE_FILE_NAME_COUNT];
+    win32_get_recording_file_location(state, true, input_playback_index, sizeof(filename), filename);
+    state->playback_handle = CreateFileA(filename, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
+    CopyMemory(state->game_memory_block, replay_buffer->state_memory_block, state->total_size);
   }
 }
 
@@ -693,8 +704,6 @@ int CALLBACK WinMain(HINSTANCE instance,
   char temp_dll_path[WIN32_STATE_FILE_NAME_COUNT];
   win32_build_exe_path_filename(&win32_state, "game_temp.dll", sizeof(temp_dll_path), temp_dll_path);
 
-  win32_get_recording_file_location(&win32_state, 1);
-
   LARGE_INTEGER global_perf_counter_frequencyResult;
   QueryPerformanceFrequency(&global_perf_counter_frequencyResult);
   global_perf_counter_frequency = global_perf_counter_frequencyResult.QuadPart;
@@ -770,6 +779,22 @@ int CALLBACK WinMain(HINSTANCE instance,
       global_sound_output.TSine = 0;
       global_sound_output.safety_bytes = (int)(((real32)global_sound_output.SamplesPerSec*(real32)global_sound_output.BytesPerSample)/game_update_hz)/3;
       game_memory.transient_storage = ((uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size);
+
+      for(int replay_index = 0; replay_index < ArrayCount(win32_state.replay_buffers); replay_index++) {
+        win32_replay_buffer *replay_buffer = &win32_state.replay_buffers[replay_index];
+        win32_get_recording_file_location(&win32_state, false, replay_index+1, sizeof(replay_buffer->file_path), replay_buffer->file_path);
+        replay_buffer->file_handle = CreateFileA(replay_buffer->file_path, GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
+        replay_buffer->memory_map = CreateFileMapping(replay_buffer->file_handle,
+                                                       0,
+                                                      PAGE_READWRITE,
+                                                      (win32_state.total_size >> 32),
+                                                      (win32_state.total_size & 0xFFFFFFFF),
+                                                      0);
+
+        replay_buffer->state_memory_block = MapViewOfFile(replay_buffer->memory_map, FILE_MAP_ALL_ACCESS, 0, 0, win32_state.total_size);
+        Assert(replay_buffer->state_memory_block);
+      }
+
       // used by game sound output
       int16 *samples = (int16 *)VirtualAlloc(0, global_sound_output.SecondaryBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
