@@ -33,30 +33,28 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
   }
 }
 
-internal void render_player(game_offscreen_buffer *buffer, int player_x, int player_y, uint32 color) {
-  const int size = 20;
-  if (player_x < 0) {
-    player_x = 0;
+internal void draw_rectangle(game_offscreen_buffer *buffer, int min_x, int min_y, int max_x, int max_y, uint32 color) {
+  if (min_x < 0) {
+    min_x = 0;
   }
-  if (player_x > buffer->width - size) {
-    player_x = buffer->width - size;
-  }
-
-  if (player_y < 0) {
-    player_y = 0;
-  }
-  if (player_y > buffer->height - size) {
-    player_y = buffer->height - size;
+  if (max_x > buffer->width) {
+    max_x = buffer->width;
   }
 
-  int top = player_y;
-  int bottom = player_y + size;
-  for (int y = top; y < bottom; y++) {
-    uint8 *pixel = ((uint8 *)buffer->memory + y*buffer->pitch + player_x*buffer->bytes_per_pixel);
-    for (int x = 0; x < size; x++) {
-      *(uint32*) pixel = color;
-      pixel += buffer->bytes_per_pixel;
+  if (min_y < 0) {
+    min_y = 0;
+  }
+  if (max_y > buffer->height) {
+    max_y = buffer->height;
+  }
+
+  uint8 *row = ((uint8*)buffer->memory + min_y*buffer->pitch + min_x*buffer->bytes_per_pixel);
+  for (int y = min_y; y < max_y; y++) {
+    uint32 *pixel = (uint32*)row;
+    for (int x = min_x; x < max_x; x++) {
+      *pixel++ = color;
     }
+    row += buffer->pitch;
   }
 }
 
@@ -121,16 +119,9 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     }
   }
 
-  renderGradient(buffer, state->x_offset, state->y_offset);
-  uint32 color = 0xFFFFFFFF;
-  render_player(buffer, state->player_x, state->player_y, color);
 
-  if (input->mouse_buttons[0].ended_down) {
-    color = 0xFF0000FF;
-  }
-
-  render_player(buffer, input->mouse_x, input->mouse_y, color);
-
+  uint32 color = 0x00FF00FF;
+  draw_rectangle(buffer, 0, 0, buffer->width, buffer->height, color);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
