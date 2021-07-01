@@ -135,7 +135,7 @@ struct game_input {
   int32 mouse_z;
   game_button_state mouse_buttons[2];
   game_controller_input controllers[5]; // 4 + keyboard
-  //  game_clocks clocks;
+  real32 seconds_to_advance_over_timestep;
 };
 inline game_controller_input *get_controller(game_input *input, int controller_index) {
   Assert(controller_index < ArrayCount(input->controllers));
