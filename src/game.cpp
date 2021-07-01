@@ -39,7 +39,9 @@ internal int32 RoundReal32ToInt32(real32 real) {
   return (int32)(real + 0.5f);
 }
 
-internal void draw_rectangle(game_offscreen_buffer *buffer, real32 real_min_x, real32 real_min_y, real32 real_max_x, real32 real_max_y, uint32 color) {
+internal void draw_rectangle(game_offscreen_buffer *buffer,
+                             real32 real_min_x, real32 real_min_y, real32 real_max_x, real32 real_max_y,
+                             real32 r, real32 g, real32 b) {
   int32 min_x = RoundReal32ToInt32(real_min_x);
   int32 max_x = RoundReal32ToInt32(real_max_x);
   int32 min_y = RoundReal32ToInt32(real_min_y);
@@ -57,6 +59,12 @@ internal void draw_rectangle(game_offscreen_buffer *buffer, real32 real_min_x, r
   if (max_y > buffer->height) {
     max_y = buffer->height;
   }
+
+  uint32 color =
+    (RoundReal32ToInt32(r * 255.0f) << 16)|
+    (RoundReal32ToInt32(g * 255.0f) << 8) |
+    (RoundReal32ToInt32(b * 255.0f));
+
 
   uint8 *row = ((uint8*)buffer->memory + min_y*buffer->pitch + min_x*buffer->bytes_per_pixel);
   for (int y = min_y; y < max_y; y++) {
@@ -98,8 +106,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
 
   uint32 color = 0x00FF00FF;
-  draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, color);
-  draw_rectangle(buffer, 10.0f, 10.0f, 30.0f, 30.0f, 0x0000FFFF);
+  draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
+  draw_rectangle(buffer, 10.0f, 10.0f, 30.0f, 50.0f, 0.0f, 0.0f, 1.0f);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
