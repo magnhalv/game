@@ -1,6 +1,6 @@
 #include "game.h"
 
-internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state *state) {
+/** internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state *state) {
   int16 tone_volume = 3000;
   int wave_period = sound_buffer->samples_per_second/state->tone_hz;
 
@@ -18,8 +18,9 @@ internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state
 
     state->t_sine += (1.0f/(real32)wave_period) * 2.0f * Pi32;
   }
-}
+} **/
 
+/**
 void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
   uint8 *row = (uint8 *)buffer->memory;
   for (int y = 0; y < buffer->height; y++) {
@@ -32,6 +33,7 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
     row += buffer->pitch;
   }
 }
+**/
 
 internal void draw_rectangle(game_offscreen_buffer *buffer, int min_x, int min_y, int max_x, int max_y, uint32 color) {
   if (min_x < 0) {
@@ -73,50 +75,17 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   game_state *state = (game_state *)memory->permanent_storage;
 
   if (!memory->is_initialized) {
-    char file_name[] = __FILE__;
-    debug_read_file_result bit_map_memory = memory->debug_platform_read_entire_file(thread, file_name);
-    if (bit_map_memory.content_size > 0) {
-      char data[] = "test";
-      memory->debug_platform_write_entire_file(thread, "./test.out", &data, 4);
-      memory->debug_platform_free_file_memory(thread, bit_map_memory.contents);
-    }
-
-    state->tone_hz = 256;
-    state->t_sine = 0.0f;
     memory->is_initialized = true;
-
-    state->player_x = 300;
-    state->player_y = 300;
   }
 
   for(int controller_index = 0; controller_index < ArrayCount(input->controllers); controller_index++) {
     game_controller_input *controller  = get_controller(input, controller_index);
     if (controller->is_analog) {
-      state->tone_hz = 256 + (int)(128.0f*(controller->stick_average_x));
-      //state->y_offset += (int)(4.0f*(controller->stick_average_y));
 
-      state->player_x += (int)controller->stick_average_x*2;
-      state->player_y -= (int)controller->stick_average_y*2;
     }
     else {
     }
 
-
-    if (controller->move_up.ended_down) {
-      state->player_y += -4;
-    }
-    if (controller->move_down.ended_down) {
-      state->player_y += 4;
-      state->tone_hz = 256;
-    }
-    if (controller->move_left.ended_down) {
-      state->player_x += -4;
-      state->tone_hz = 256 - 128;
-    }
-    if (controller->move_right.ended_down) {
-      state->player_x += 4;
-      state->tone_hz = 256 + 128;
-    }
   }
 
 
@@ -127,5 +96,4 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
 {
   game_state *state = (game_state *)memory->permanent_storage;
-  GameOutputSound(sound_buffer, state);
 }

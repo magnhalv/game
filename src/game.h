@@ -166,13 +166,6 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
 struct game_state {
-  int x_offset;
-  int y_offset;
-  int tone_hz;
-  real32 t_sine;
-
-  int player_x;
-  int player_y;
 };
 
 #define GAME_H

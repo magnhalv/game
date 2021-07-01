@@ -28,6 +28,7 @@ global_variable win32_sound_output global_sound_output = {};
 global_variable int64 global_perf_counter_frequency;
 global_variable bool32 global_pause = false;
 
+#define AUDIO_DEBUG 0
 
 /**
     UTIL
@@ -745,7 +746,7 @@ int CALLBACK WinMain(HINSTANCE instance,
                       instance,
                       0);
     win32_window_dimension dimension = win32_get_window_dimension(window);
-    win32_ResizeDIBSection(&global_back_buffer, 1280, 720);
+    win32_ResizeDIBSection(&global_back_buffer, 960, 540);
     if (window) {
       HDC refresh_dc = GetDC(window);
       int monitor_refresh_hz = 60;
@@ -1056,7 +1057,7 @@ int CALLBACK WinMain(HINSTANCE instance,
               game_code.game_get_sound_samples(&thread, &game_memory, &sound_buffer);
             }
 
-#if GAME_INTERNAL
+#if AUDIO_DEBUG
             {
               win32_debug_time_marker *marker = &debug_time_markers[debug_time_marker_index];
               marker->output_play_cursor = play_cursor;
@@ -1121,7 +1122,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           uint64 cycles_elapsed =  end_cycle_count - last_cycle_count;
           last_cycle_count = end_cycle_count;
 
-#if GAME_INTERNAL
+#if AUDIO_DEBUG
           win32_debug_sync_display(&global_back_buffer, ArrayCount(debug_time_markers), debug_time_markers, debug_time_marker_index-1, &global_sound_output, target_seconds_per_frame);
 #endif
           HDC device_context = GetDC(window);
@@ -1130,7 +1131,7 @@ int CALLBACK WinMain(HINSTANCE instance,
 
           flip_wall_clock = win32_get_wall_clock();
 
-#if GAME_INTERNAL
+#if AUDIO_DEBUG
           {
             Assert(debug_time_marker_index < ArrayCount(debug_time_markers))
             globalSecondaryBuffer->GetCurrentPosition(&play_cursor, &write_cursor);
@@ -1152,7 +1153,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           StringCbPrintfA(fpsBuffer, sizeof(fpsBuffer), "%.02f ms/f. %.02f f/s. %.02f mc/f\n", msPerFrame, fps, mcpf);
           OutputDebugStringA(fpsBuffer);
           last_counter = end_counter;
-#if GAME_INTERNAL
+#if AUDIO_DEBUG
           debug_time_marker_index++;
           if (debug_time_marker_index >= ArrayCount(debug_time_markers)) {
             debug_time_marker_index = 0;
