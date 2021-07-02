@@ -817,8 +817,7 @@ int CALLBACK WinMain(HINSTANCE instance,
         game_input input[2] = {{0}};
         game_input *new_input = &input[0];
         game_input *old_input = &input[1];
-        new_input->seconds_to_advance_over_timestep = target_seconds_per_frame;
-        old_input->seconds_to_advance_over_timestep = target_seconds_per_frame;
+        new_input->dt = target_seconds_per_frame;
 
         LARGE_INTEGER last_counter = win32_get_wall_clock();
         uint64 last_cycle_count = __rdtsc();

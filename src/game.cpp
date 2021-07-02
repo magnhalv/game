@@ -100,14 +100,76 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
     }
     else {
+      real32 velocity = 512.0f * input->dt;
+      real32 player_dx = 0.0f;
+      real32 player_dy = 0.0f;
+      if (controller->move_up.ended_down) {
+        player_dy = -1.0f;
+      }
+      if (controller->move_down.ended_down) {
+        player_dy = 1.0f;
+      }
+      if (controller->move_left.ended_down) {
+        player_dx = -1.0f;
+      }
+      if (controller->move_right.ended_down) {
+        player_dx = 1.0f;
+      }
+
+      state->player_x += (player_dx*velocity);
+      state->player_y += (player_dy*velocity);
     }
 
   }
 
+  uint32 tile_map[9][17] = {
+    { 1, 1, 1, 1,  1, 1, 1, 1,  1, 0, 1, 1,  1, 1, 1, 0,  1 },
+    { 1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0,  1 },
+    { 1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0,  1 },
+    { 1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1 },
+    { 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1 },
+    { 1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0,  1 },
+    { 1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  1 },
+    { 1, 0, 1, 1,  0, 0, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0,  1 },
+    { 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 0,  1 }
+  };
 
-  uint32 color = 0x00FF00FF;
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
-  draw_rectangle(buffer, 10.0f, 10.0f, 30.0f, 50.0f, 0.0f, 0.0f, 1.0f);
+
+  real32 upper_left_x = 0;
+  real32 upper_left_y = 0;
+  real32 tile_width = 55;
+  real32 tile_height = 55;
+
+  for (int row = 0; row < 9; row++) {
+    for (int column = 0; column < 17; column++) {
+      uint32 tile_value = tile_map[row][column];
+      real32 gray = 0.5f;
+      if (tile_value == 1) {
+        gray = 1.0f;
+      }
+      real32 min_x = upper_left_x + ((real32)column)*tile_width;
+      real32 min_y = upper_left_y + ((real32)row)*tile_height;
+      real32 max_x = min_x + tile_width;
+      real32 max_y = min_y + tile_height;
+      draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
+
+    }
+  }
+
+  real32 player_r = 0.6f;
+  real32 player_g = 1.0f;
+  real32 player_b = 0.5f;
+  real32 player_width = 0.75f*tile_width;
+  real32 player_height = 0.75f*tile_height;
+  real32 player_left = state->player_x - 0.5f*player_width;
+  real32 player_top = state->player_y - player_height;
+
+
+  draw_rectangle(buffer,
+                 player_left, player_top, player_left + player_width, player_top + player_height,
+                 player_r, player_g, player_b);
+
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples_imp)
