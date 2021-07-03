@@ -293,10 +293,11 @@ win32_DisplayBufferInWindows(HDC deviceContext,
                              int y,
                              int width,
                              int height) {
+  int offset = 10;
   StretchDIBits(deviceContext,
                 //                x, y, width, height,
                 //                x, y, width, height,
-                0, 0, buffer.width, buffer.height,
+                offset, offset, buffer.width, buffer.height,
                 0, 0, buffer.width, buffer.height,
                 buffer.memory,
                 &buffer.Info,
@@ -344,6 +345,7 @@ internal LRESULT CALLBACK WindowProcCallback(HWND window,
     PatBlt(deviceContext, x, y, width, height, color);
 
     win32_window_dimension dimension = win32_get_window_dimension(window);
+    PatBlt(deviceContext, 0, 0, dimension.width, dimension.height, BLACKNESS);
     win32_DisplayBufferInWindows(deviceContext, dimension.width, dimension.height, global_back_buffer, x, y, width, height);
     if (color == WHITENESS) {
       color = BLACKNESS;
@@ -722,6 +724,7 @@ int CALLBACK WinMain(HINSTANCE instance,
   // NOTE: Set the windows scheduler granularity to 1 ms so that our sleep can be more granular.
   UINT desired_scheduler_ms = 1;
   bool32 is_sleep_granular = timeBeginPeriod(desired_scheduler_ms) == TIMERR_NOERROR;
+  is_sleep_granular = false;
 
   WNDCLASS windowClass = {};
   win32_loadXinput();
@@ -849,10 +852,6 @@ int CALLBACK WinMain(HINSTANCE instance,
           for(int button_index = 0; button_index < ArrayCount(new_keyboard_controller->buttons); button_index++) {
             new_keyboard_controller->buttons[button_index].ended_down
               = old_keyboard_controller->buttons[button_index].ended_down;
-
-            if (new_keyboard_controller->buttons[button_index].ended_down) {
-              OutputDebugStringA("It is down!\n");
-            }
           }
 
 
