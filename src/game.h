@@ -170,6 +170,24 @@ struct game_state {
   real32 player_y;
 };
 
+struct tile_map {
+  uint32 dim_x;
+  uint32 dim_y;
+  real32 upper_left_x;
+  real32 upper_left_y;;
+  real32 tile_width;
+  real32 tile_height;
+
+  uint32 *tiles;
+};
+
+
+struct world {
+  uint32 dim_x;
+  uint32 dim_y;
+  tile_map *tile_maps;
+};
+
 #define GAME_H
 #endif
 
