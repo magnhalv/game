@@ -166,25 +166,50 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
 struct game_state {
+  int32 player_tile_map_x;
+  int32 player_tile_map_y;
+
   real32 player_x;
   real32 player_y;
 };
 
 struct tile_map {
-  uint32 dim_x;
-  uint32 dim_y;
+  uint32 *tiles;
+};
+
+
+struct canonical_position {
+  int32 tile_map_x;
+  int32 tile_map_y;
+
+  int32 tile_x;
+  int32 tile_y;
+
+  // NOTE: tile relative x,y
+  real32 x;
+  real32 y;
+};
+
+struct raw_position {
+  int32 tile_map_x;
+  int32 tile_map_y;
+
+  // NOTE: tile map relative x,y
+  real32 x;
+  real32 y;
+};
+
+struct world {
+  uint32 tile_map_dim_x;
+  uint32 tile_map_dim_y;
   real32 upper_left_x;
   real32 upper_left_y;;
   real32 tile_width;
   real32 tile_height;
 
-  uint32 *tiles;
-};
 
-
-struct world {
-  uint32 dim_x;
-  uint32 dim_y;
+  uint32 world_dim_x;
+  uint32 world_dim_y;
   tile_map *tile_maps;
 };
 

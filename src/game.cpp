@@ -39,8 +39,13 @@ internal int32 RoundReal32ToInt32(real32 real) {
   return (int32)(real + 0.5f);
 }
 
-internal int32 truncate_real32_to_int32(real32 real) {
-  return (int32)real;
+#include "math.h"
+internal int32 floor_real32_to_int32(real32 real) {
+  if (real < 0) {
+    int x = 5;
+  }
+  int32 result = (int32)floorf(real);
+  return result;
 }
 
 internal void draw_rectangle(game_offscreen_buffer *buffer,
@@ -81,45 +86,74 @@ internal void draw_rectangle(game_offscreen_buffer *buffer,
 }
 
 internal tile_map* get_tile_map(world *world, uint32 x, uint32 y) {
-  if ((x >= 0) && (x < world->dim_x) &&
-      (y >= 0) && (y < world->dim_y)) {
-      return &world->tile_maps[x + y*world->dim_x];
+  if ((x >= 0) && (x < world->world_dim_x) &&
+      (y >= 0) && (y < world->world_dim_y)) {
+      return &world->tile_maps[x + y*world->world_dim_x];
   }
   return NULL;
 }
 
-internal uint32 get_tile_value_unchecked(tile_map *tile_map, uint32 x, uint32 y) {
-  return tile_map->tiles[x + tile_map->dim_x*y];
+internal uint32 get_tile_value_unchecked(world *world, tile_map *tile_map, uint32 x, uint32 y) {
+  return tile_map->tiles[x + world->tile_map_dim_x*y];
 }
 
-internal bool32 is_tile_point_empty(tile_map *tile_map, real32 test_x, real32 test_y) {
-  uint32 point_tile_x = truncate_real32_to_int32((test_x - tile_map->upper_left_x) / tile_map->tile_width);
-  uint32 point_tile_y = truncate_real32_to_int32((test_y - tile_map->upper_left_y) / tile_map->tile_height);
-
+internal bool32 is_tile_point_empty(world *world, tile_map *tile_map, uint32 test_tile_x, uint32 test_tile_y) {
   bool32 is_empty = false;
-
-  if ((point_tile_x >= 0) && (point_tile_x < tile_map->dim_x) &&
-      (point_tile_y >= 0) && (point_tile_y < tile_map->dim_y)) {
-    uint32 tile_map_value = get_tile_value_unchecked(tile_map, point_tile_x, point_tile_y);
+  if (tile_map) {
+    uint32 tile_map_value = get_tile_value_unchecked(world, tile_map, test_tile_x, test_tile_y);
     is_empty = tile_map_value == 0;
   }
   return is_empty;
 }
 
+inline canonical_position get_canonical_position(world *world, raw_position pos) {
+  canonical_position result = {};
 
-internal bool32 is_world_point_empty(world *world, uint32 tile_x, uint32 tile_y, real32 point_x, real32 point_y) {
-  tile_map *tile_map = get_tile_map(world, tile_x, tile_y);
+  result.tile_map_x = pos.tile_map_x;
+  result.tile_map_y = pos.tile_map_y;
 
-  uint32 point_tile_x = truncate_real32_to_int32((point_x - tile_map->upper_left_x) / tile_map->tile_width);
-  uint32 point_tile_y = truncate_real32_to_int32((point_y - tile_map->upper_left_y) / tile_map->tile_height);
+  real32 x = pos.x - world->upper_left_x;
+  real32 y = pos.y - world->upper_left_y;
+  result.tile_x = floor_real32_to_int32((x) / world->tile_width);
+  result.tile_y = floor_real32_to_int32((y) / world->tile_height);
+  result.x = x - result.tile_x*world->tile_width;
+  result.y = y - result.tile_y*world->tile_height;
 
+  Assert(result.x >= 0);
+  Assert(result.y >= 0);
+  Assert(result.x <= world->tile_width);
+  Assert(result.y <= world->tile_height);
+
+  if (result.tile_x < 0) {
+    result.tile_x = result.tile_x + world->tile_map_dim_x;
+    result.tile_map_x--;
+  }
+  else if (result.tile_x > (int32)(world->tile_map_dim_x - 1)) {
+    result.tile_x = result.tile_x - world->tile_map_dim_x;
+    result.tile_map_x++;
+  }
+
+  if (result.tile_y < 0) {
+    result.tile_y = result.tile_y + world->tile_map_dim_y;
+    result.tile_map_y--;
+  }
+  else if (result.tile_y > (int32)(world->tile_map_dim_y - 1)) {
+    result.tile_y = result.tile_y - world->tile_map_dim_y;
+    result.tile_map_y++;
+  }
+
+  return result;
+}
+
+
+internal bool32 is_world_point_empty(world *world, raw_position pos) {
+
+  canonical_position can_pos = get_canonical_position(world, pos);
+  tile_map *tile_map = get_tile_map(world, can_pos.tile_map_x, can_pos.tile_map_y);
   bool32 is_empty = false;
 
-  if ((point_tile_x >= 0) && (point_tile_x < tile_map->dim_x) &&
-      (point_tile_y >= 0) && (point_tile_y < tile_map->dim_y)) {
-    uint32 tile_map_value = get_tile_value_unchecked(tile_map, point_tile_x, point_tile_y);
-    is_empty = tile_map_value == 0;
-  }
+  is_empty = is_tile_point_empty(world, tile_map, can_pos.tile_x, can_pos.tile_y);
+
   return is_empty;
 }
 
@@ -149,19 +183,22 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   #define TILE_MAP_DIM_Y 9
   tile_map tile_maps[2][2] = {{0}};
 
-  tile_maps[0][0].dim_x = TILE_MAP_DIM_X;
-  tile_maps[0][0].dim_y = TILE_MAP_DIM_Y;
-  tile_maps[0][0].upper_left_x = -30;
-  tile_maps[0][0].upper_left_y = 0;
-  tile_maps[0][0].tile_width = 60;
-  tile_maps[0][0].tile_height = 60;
+  world world = {};
+  world.tile_map_dim_x = TILE_MAP_DIM_X;
+  world.tile_map_dim_y = TILE_MAP_DIM_Y;
+  world.upper_left_x = -30;
+  world.upper_left_y = 0;
+  world.tile_width = 60;
+  world.tile_height = 60;
+  world.world_dim_x = 2;
+  world.world_dim_y = 2;
 
   uint32 tiles00[TILE_MAP_DIM_X * TILE_MAP_DIM_Y] = {
     1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1,
     1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0,  1,
+    1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  0,
+    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  1,
     1, 0, 1, 1,  0, 0, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0,  1,
@@ -172,9 +209,9 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     1, 1, 1, 1,  1, 1, 1, 0,  1, 1, 1, 1,  1, 1, 1, 1,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  0,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
+    1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
+    1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  0,
+    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  0, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1,
@@ -184,10 +221,10 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
+    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  0, 0, 0, 0,  1,
     0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  1,
+    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1, 1, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 1, 1, 1,  1, 1, 1, 0,  1, 1, 1, 1,  1, 1, 1, 1,  1,
   };
@@ -196,8 +233,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     1, 1, 1, 1,  1, 1, 1, 0,  1, 1, 1, 1,  1, 1, 1, 1,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1,
-    1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
-    0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1,
+    1, 0, 1, 1,  0, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0,  1,
+    0, 0, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  1,
     1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1,
@@ -205,27 +242,20 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   };
 
   tile_maps[0][0].tiles = tiles00;
-
-  tile_maps[0][1] = tile_maps[0][0];
-  tile_maps[0][1].tiles = tiles01;
-  tile_maps[1][0] = tile_maps[0][0];
-  tile_maps[1][0].tiles = tiles10;
-  tile_maps[1][1] = tile_maps[0][0];
+  tile_maps[1][0].tiles = tiles01;
+  tile_maps[0][1].tiles = tiles10;
   tile_maps[1][1].tiles = tiles11;
 
-
-  world world = {};
-  world.dim_x = 2;
-  world.dim_y = 2;
   world.tile_maps = reinterpret_cast<tile_map *>(tile_maps);
 
-  tile_map *tile_map = &tile_maps[0][0];
+  tile_map *tile_map = get_tile_map(&world, state->player_tile_map_x, state->player_tile_map_y);
+  Assert(tile_map);
 
   real32 player_r = 0.6f;
   real32 player_g = 1.0f;
   real32 player_b = 0.5f;
-  real32 player_width = 0.75f*tile_map->tile_width;
-  real32 player_height = 0.75f*tile_map->tile_height;
+  real32 player_width = 0.75f*world.tile_width;
+  real32 player_height = 0.75f*world.tile_height;
   real32 player_left = state->player_x - 0.5f*player_width;
   real32 player_top = state->player_y - player_height;
 
@@ -253,48 +283,48 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       }
 
       real32 new_player_x = state->player_x + (player_dx*velocity);
-      real32 new_player_y = state->player_y;
+      real32 new_player_y = state->player_y + (player_dy*velocity);
+
+      raw_position pos = {};
+      pos.x = new_player_x;
+      pos.y = new_player_y;
+      pos.tile_map_x = state->player_tile_map_x;
+      pos.tile_map_y = state->player_tile_map_y;
+
+      raw_position player_left_pos = pos;
+      player_left_pos.x -= 0.5f*player_width;
+      raw_position player_right_pos = pos;
+      player_right_pos.x += 0.5f*player_width;
 
       if (
-          is_tile_point_empty(tile_map, new_player_x, new_player_y) &&
-          is_tile_point_empty(tile_map, new_player_x - 0.5f*player_width, new_player_y) &&
-          is_tile_point_empty(tile_map, new_player_x + 0.5f*player_width, new_player_y) &&
-          is_tile_point_empty(tile_map, new_player_x - 0.5f*player_width, new_player_y - player_height) &&
-          is_tile_point_empty(tile_map, new_player_x + 0.5f*player_width, new_player_y - player_height)
+          is_world_point_empty(&world, pos) &&
+          is_world_point_empty(&world, player_left_pos) &&
+          is_world_point_empty(&world, player_right_pos)
           ) {
-        state->player_x = new_player_x;
-      }
-      else {
-        new_player_x = state->player_x;
-      }
 
-      new_player_y = state->player_y + (player_dy*velocity);
+        canonical_position can_pos = get_canonical_position(&world, pos);
+        state->player_tile_map_x = can_pos.tile_map_x;
+        state->player_tile_map_y = can_pos.tile_map_y;
 
-      if (
-          is_tile_point_empty(tile_map, new_player_x, new_player_y) &&
-          is_tile_point_empty(tile_map, new_player_x - 0.5f*player_width, new_player_y) &&
-          is_tile_point_empty(tile_map, new_player_x + 0.5f*player_width, new_player_y) &&
-          is_tile_point_empty(tile_map, new_player_x - 0.5f*player_width, new_player_y - player_height) &&
-          is_tile_point_empty(tile_map, new_player_x + 0.5f*player_width, new_player_y - player_height)
-          ) {
-          state->player_y = new_player_y;
-        }
+        state->player_x = world.upper_left_x + world.tile_width*can_pos.tile_x + can_pos.x;
+        state->player_y = world.upper_left_y + world.tile_height*can_pos.tile_y + can_pos.y;
+      }
     }
   }
 
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
 
-  for (uint32 row = 0; row < tile_map->dim_y; row++) {
-    for (uint32 column = 0; column < tile_map->dim_x; column++) {
-      uint32 tile_value = get_tile_value_unchecked(tile_map, column, row);
+  for (uint32 row = 0; row < world.tile_map_dim_y; row++) {
+    for (uint32 column = 0; column < world.tile_map_dim_x; column++) {
+      uint32 tile_value = get_tile_value_unchecked(&world, tile_map, column, row);
       real32 gray = 0.5f;
       if (tile_value == 1) {
         gray = 1.0f;
       }
-      real32 min_x = tile_map->upper_left_x + ((real32)column)*tile_map->tile_width;
-      real32 min_y = tile_map->upper_left_y + ((real32)row)*tile_map->tile_height;
-      real32 max_x = min_x + tile_map->tile_width;
-      real32 max_y = min_y + tile_map->tile_height;
+      real32 min_x = world.upper_left_x + ((real32)column)*world.tile_width;
+      real32 min_y = world.upper_left_y + ((real32)row)*world.tile_height;
+      real32 max_x = min_x + world.tile_width;
+      real32 max_y = min_y + world.tile_height;
       draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
 
     }
