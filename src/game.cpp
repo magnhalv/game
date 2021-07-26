@@ -1,4 +1,5 @@
 #include "game.h"
+#include "game_intrinsics.h"
 
 /** internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state *state) {
   int16 tone_volume = 3000;
@@ -35,26 +36,13 @@ void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
 }
 **/
 
-internal int32 RoundReal32ToInt32(real32 real) {
-  return (int32)(real + 0.5f);
-}
-
-#include "math.h"
-internal int32 floor_real32_to_int32(real32 real) {
-  if (real < 0) {
-    int x = 5;
-  }
-  int32 result = (int32)floorf(real);
-  return result;
-}
-
 internal void draw_rectangle(game_offscreen_buffer *buffer,
                              real32 real_min_x, real32 real_min_y, real32 real_max_x, real32 real_max_y,
                              real32 r, real32 g, real32 b) {
-  int32 min_x = RoundReal32ToInt32(real_min_x);
-  int32 max_x = RoundReal32ToInt32(real_max_x);
-  int32 min_y = RoundReal32ToInt32(real_min_y);
-  int32 max_y = RoundReal32ToInt32(real_max_y);
+  int32 min_x = round_real32_to_int32(real_min_x);
+  int32 max_x = round_real32_to_int32(real_max_x);
+  int32 min_y = round_real32_to_int32(real_min_y);
+  int32 max_y = round_real32_to_int32(real_max_y);
   if (min_x < 0) {
     min_x = 0;
   }
@@ -70,9 +58,9 @@ internal void draw_rectangle(game_offscreen_buffer *buffer,
   }
 
   uint32 color =
-    (RoundReal32ToInt32(r * 255.0f) << 16)|
-    (RoundReal32ToInt32(g * 255.0f) << 8) |
-    (RoundReal32ToInt32(b * 255.0f));
+    (round_real32_to_int32(r * 255.0f) << 16)|
+    (round_real32_to_int32(g * 255.0f) << 8) |
+    (round_real32_to_int32(b * 255.0f));
 
 
   uint8 *row = ((uint8*)buffer->memory + min_y*buffer->pitch + min_x*buffer->bytes_per_pixel);
@@ -106,54 +94,40 @@ internal bool32 is_tile_point_empty(world *world, tile_map *tile_map, uint32 tes
   return is_empty;
 }
 
-inline canonical_position get_canonical_position(world *world, raw_position pos) {
-  canonical_position result = {};
+inline void recanonicalize_point(world *world, int32 tile_count, int32 *tile_map, int32 *tile, real32 *tile_rel) {
+  int32 tile_offset = floor_real32_to_int32(*tile_rel / world->tile_side_in_meters);
+  *tile += tile_offset;
+  *tile_rel -= tile_offset * world->tile_side_in_meters;
 
-  result.tile_map_x = pos.tile_map_x;
-  result.tile_map_y = pos.tile_map_y;
+  Assert(*tile_rel >= 0);
+  Assert(*tile_rel <= world->tile_side_in_meters);
 
-  real32 x = pos.x - world->upper_left_x;
-  real32 y = pos.y - world->upper_left_y;
-  result.tile_x = floor_real32_to_int32((x) / world->tile_width);
-  result.tile_y = floor_real32_to_int32((y) / world->tile_height);
-  result.x = x - result.tile_x*world->tile_width;
-  result.y = y - result.tile_y*world->tile_height;
-
-  Assert(result.x >= 0);
-  Assert(result.y >= 0);
-  Assert(result.x <= world->tile_width);
-  Assert(result.y <= world->tile_height);
-
-  if (result.tile_x < 0) {
-    result.tile_x = result.tile_x + world->tile_map_dim_x;
-    result.tile_map_x--;
-  }
-  else if (result.tile_x > (int32)(world->tile_map_dim_x - 1)) {
-    result.tile_x = result.tile_x - world->tile_map_dim_x;
-    result.tile_map_x++;
+  if (*tile < 0) {
+    *tile += tile_count;
+    *tile_map = *tile_map -1;
   }
 
-  if (result.tile_y < 0) {
-    result.tile_y = result.tile_y + world->tile_map_dim_y;
-    result.tile_map_y--;
+  if (*tile >= (int32)(tile_count)) {
+    *tile -= tile_count;
+    *tile_map = *tile_map + 1;
   }
-  else if (result.tile_y > (int32)(world->tile_map_dim_y - 1)) {
-    result.tile_y = result.tile_y - world->tile_map_dim_y;
-    result.tile_map_y++;
-  }
+}
 
+inline canonical_position recanonicalize_position(world *world, canonical_position pos) {
+  canonical_position result = pos;
+  recanonicalize_point(world, world->tile_map_dim_x, &result.tile_map_x, &result.tile_x, &result.tile_rel_x);
+  recanonicalize_point(world, world->tile_map_dim_y, &result.tile_map_y, &result.tile_y, &result.tile_rel_y);
   return result;
 }
 
 
-internal bool32 is_world_point_empty(world *world, raw_position pos) {
-
-  canonical_position can_pos = get_canonical_position(world, pos);
-  tile_map *tile_map = get_tile_map(world, can_pos.tile_map_x, can_pos.tile_map_y);
+internal bool32 is_world_point_empty(world *world, canonical_position pos) {
+  tile_map *tile_map = get_tile_map(world, pos.tile_map_x, pos.tile_map_y);
   bool32 is_empty = false;
-
-  is_empty = is_tile_point_empty(world, tile_map, can_pos.tile_x, can_pos.tile_y);
-
+  is_empty = is_tile_point_empty(world, tile_map, pos.tile_x, pos.tile_y);
+  if (!is_empty) {
+    int32 x = 5;
+  }
   return is_empty;
 }
 
@@ -174,8 +148,10 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   if (!memory->is_initialized) {
     memory->is_initialized = true;
-    state->player_x = 100;
-    state->player_y = 150;
+    state->player_position.tile_map_x = 0;
+    state->player_position.tile_map_y = 0;
+    state->player_position.tile_x = 5;
+    state->player_position.tile_y = 5;
   }
 
 
@@ -184,14 +160,18 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   tile_map tile_maps[2][2] = {{0}};
 
   world world = {};
+  world.tile_side_in_meters = 1.4f;
+  world.tile_side_in_pixels = 50;
+  world.meters_to_pixels = (real32)world.tile_side_in_pixels / world.tile_side_in_meters;
   world.tile_map_dim_x = TILE_MAP_DIM_X;
   world.tile_map_dim_y = TILE_MAP_DIM_Y;
-  world.upper_left_x = -30;
+  world.upper_left_x = 0;
   world.upper_left_y = 0;
-  world.tile_width = 60;
-  world.tile_height = 60;
   world.world_dim_x = 2;
   world.world_dim_y = 2;
+  real32 player_height = 1.4f;
+  real32 player_width = 0.75f*player_height;
+
 
   uint32 tiles00[TILE_MAP_DIM_X * TILE_MAP_DIM_Y] = {
     1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1,
@@ -248,25 +228,13 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   world.tile_maps = reinterpret_cast<tile_map *>(tile_maps);
 
-  tile_map *tile_map = get_tile_map(&world, state->player_tile_map_x, state->player_tile_map_y);
-  Assert(tile_map);
-
-  real32 player_r = 0.6f;
-  real32 player_g = 1.0f;
-  real32 player_b = 0.5f;
-  real32 player_width = 0.75f*world.tile_width;
-  real32 player_height = 0.75f*world.tile_height;
-  real32 player_left = state->player_x - 0.5f*player_width;
-  real32 player_top = state->player_y - player_height;
-
-
   for(int controller_index = 0; controller_index < ArrayCount(input->controllers); controller_index++) {
     game_controller_input *controller  = get_controller(input, controller_index);
     if (controller->is_analog) {
 
     }
     else {
-      real32 velocity = 512.0f * input->dt;
+      real32 velocity = 10.0f * input->dt;
       real32 player_dx = 0.0f;
       real32 player_dy = 0.0f;
       if (controller->move_up.ended_down) {
@@ -282,37 +250,49 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
         player_dx = 1.0f;
       }
 
-      real32 new_player_x = state->player_x + (player_dx*velocity);
-      real32 new_player_y = state->player_y + (player_dy*velocity);
+      canonical_position player_pos = {};
+      player_pos = state->player_position;
+      player_pos.tile_rel_x = state->player_position.tile_rel_x + (player_dx*velocity);
+      player_pos.tile_rel_y = state->player_position.tile_rel_y + (player_dy*velocity);
+      player_pos = recanonicalize_position(&world, player_pos);
 
-      raw_position pos = {};
-      pos.x = new_player_x;
-      pos.y = new_player_y;
-      pos.tile_map_x = state->player_tile_map_x;
-      pos.tile_map_y = state->player_tile_map_y;
+      canonical_position player_left_pos = player_pos;
+      player_left_pos.tile_rel_x -= 0.5f*player_width;
+      player_left_pos = recanonicalize_position(&world, player_left_pos);
 
-      raw_position player_left_pos = pos;
-      player_left_pos.x -= 0.5f*player_width;
-      raw_position player_right_pos = pos;
-      player_right_pos.x += 0.5f*player_width;
+      canonical_position player_right_pos = player_pos;
+      player_right_pos.tile_rel_x += 0.5f*player_width;
+      player_right_pos = recanonicalize_position(&world, player_right_pos);
 
       if (
-          is_world_point_empty(&world, pos) &&
+          is_world_point_empty(&world, player_pos) &&
           is_world_point_empty(&world, player_left_pos) &&
           is_world_point_empty(&world, player_right_pos)
           ) {
 
-        canonical_position can_pos = get_canonical_position(&world, pos);
-        state->player_tile_map_x = can_pos.tile_map_x;
-        state->player_tile_map_y = can_pos.tile_map_y;
-
-        state->player_x = world.upper_left_x + world.tile_width*can_pos.tile_x + can_pos.x;
-        state->player_y = world.upper_left_y + world.tile_height*can_pos.tile_y + can_pos.y;
+        state->player_position = player_pos;
       }
     }
   }
 
+  tile_map *tile_map = get_tile_map(&world, state->player_position.tile_map_x, state->player_position.tile_map_y);
+  Assert(tile_map);
+
+  real32 player_r = 0.6f;
+  real32 player_g = 1.0f;
+  real32 player_b = 0.5f;
+  canonical_position pos = state->player_position;
+  real32 player_left = world.upper_left_x
+    + pos.tile_x*world.tile_side_in_pixels
+    + pos.tile_rel_x*world.meters_to_pixels
+    - 0.5f*player_width*world.meters_to_pixels;
+  real32 player_top = world.upper_left_y
+    + pos.tile_y*world.tile_side_in_pixels
+    + pos.tile_rel_y*world.meters_to_pixels
+    - player_height*world.meters_to_pixels;
+
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
+
 
   for (uint32 row = 0; row < world.tile_map_dim_y; row++) {
     for (uint32 column = 0; column < world.tile_map_dim_x; column++) {
@@ -321,17 +301,25 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       if (tile_value == 1) {
         gray = 1.0f;
       }
-      real32 min_x = world.upper_left_x + ((real32)column)*world.tile_width;
-      real32 min_y = world.upper_left_y + ((real32)row)*world.tile_height;
-      real32 max_x = min_x + world.tile_width;
-      real32 max_y = min_y + world.tile_height;
+
+      if ((column == (uint32)state->player_position.tile_x) && (row == (uint32)state->player_position.tile_y)) {
+        gray = 0.0f;
+      }
+
+      real32 min_x = world.upper_left_x + ((real32)column)*world.tile_side_in_pixels;
+      real32 min_y = world.upper_left_y + ((real32)row)*world.tile_side_in_pixels;
+      real32 max_x = min_x + world.tile_side_in_pixels;
+      real32 max_y = min_y + world.tile_side_in_pixels;
       draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
 
     }
   }
 
   draw_rectangle(buffer,
-                 player_left, player_top, player_left + player_width, player_top + player_height,
+                 player_left,
+                 player_top,
+                 player_left + player_width*world.meters_to_pixels,
+                 player_top + player_height*world.meters_to_pixels,
                  player_r, player_g, player_b);
 
 }
