@@ -9,6 +9,7 @@ set CurrentDateTime=%CurrentDateTime: =0%
 IF NOT EXIST build mkdir build
 pushd build
 del *.pdb > NUL 2> NUL
+REM Optimization switches /O2 /Oi /fp:fast
 cl %CommonCompilerFlags%  ../src/game.cpp -Fmwin32_game.map /LD /link -incremental:no /EXPORT:game_update_and_render_imp /EXPORT:game_get_sound_samples_imp /PDB:game_%CurrentDateTime%.pdb
 cl %CommonCompilerFlags%  ../src/win32_game.cpp -Fmwin32_game.map /link %CommonLinkerFlags%
 popd
