@@ -165,22 +165,23 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *thread, game_memory *memory, game_sound_output_buffer *sound_buffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
-struct tile_map {
+struct tile_chunk {
   uint32 *tiles;
 };
 
 
-struct canonical_position {
-#if 1
-  int32 tile_map_x;
-  int32 tile_map_y;
+struct tile_chunk_position {
+  uint32 tile_chunk_x;
+  uint32 tile_chunk_y;
 
-  int32 tile_x;
-  int32 tile_y;
-#else
-  uint32 tile_x;
-  uint32 tile_y;
-#endif
+  uint32 rel_tile_x;
+  uint32 rel_tile_y;
+};
+
+struct world_position {
+
+  uint32 abs_tile_x;
+  uint32 abs_tile_y;
 
   // NOTE: tile relative x,y
   real32 tile_rel_x;
@@ -188,22 +189,21 @@ struct canonical_position {
 };
 
 struct world {
+  uint32 chunk_shift;
+  uint32 chunk_mask;
+  uint32 chunk_dim;
+
   real32 tile_side_in_meters;
   int32 tile_side_in_pixels;
   real32 meters_to_pixels;
 
-  uint32 tile_map_dim_x;
-  uint32 tile_map_dim_y;
-  real32 upper_left_x;
-  real32 upper_left_y;;
-
-  uint32 world_dim_x;
-  uint32 world_dim_y;
-  tile_map *tile_maps;
+  uint32 tile_chunk_count_x;
+  uint32 tile_chunk_count_y;
+  tile_chunk *tile_chunks;
 };
 
 struct game_state {
-  canonical_position player_position;
+  world_position player_position;
 };
 
 
