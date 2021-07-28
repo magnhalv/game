@@ -749,7 +749,7 @@ int CALLBACK WinMain(HINSTANCE instance,
                       instance,
                       0);
     win32_window_dimension dimension = win32_get_window_dimension(window);
-    win32_ResizeDIBSection(&global_back_buffer, 960, 540);
+    win32_ResizeDIBSection(&global_back_buffer, 1280, 720);
     if (window) {
       HDC refresh_dc = GetDC(window);
       int monitor_refresh_hz = 60;
