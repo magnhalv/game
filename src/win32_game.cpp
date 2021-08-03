@@ -552,7 +552,7 @@ internal void win32_process_pending_messages(win32_state *win32_state, game_cont
 
           }
           if (vk_code == VK_UP) {
-
+            win32_process_keyboard_message(&keyboard_controller->action_up, is_down);
           }
           if (vk_code == VK_DOWN) {
 

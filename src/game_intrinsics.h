@@ -1,7 +1,7 @@
 #if !defined(GAME_INTRINSICS_H)
 
 internal int32 round_real32_to_int32(real32 real) {
-  return (int32)(real + 0.5f);
+  return (int32)roundf(real);
 }
 
 #include "math.h"

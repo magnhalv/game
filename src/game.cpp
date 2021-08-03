@@ -81,19 +81,19 @@ internal tile_chunk* get_tile_chunk(world *world, uint32 x, uint32 y) {
 }
 
 
-inline void recanonicalize_point(world *world, uint32 *tile, real32 *tile_rel) {
-  int32 offset = floor_real32_to_int32(*tile_rel / world->tile_side_in_meters);
+inline void recanonicalize_coord(world *world, uint32 *tile, real32 *tile_rel) {
+  int32 offset = round_real32_to_int32(*tile_rel / world->tile_side_in_meters);
   *tile += offset;
   *tile_rel -= offset * world->tile_side_in_meters;
 
-  Assert(*tile_rel >= 0);
-  Assert(*tile_rel <= world->tile_side_in_meters);
+  Assert(*tile_rel >= -0.5f*world->tile_side_in_meters);
+  Assert(*tile_rel <= 0.5f*world->tile_side_in_meters);
 }
 
 inline world_position recanonicalize_position(world *world, world_position pos) {
   world_position result = pos;
-  recanonicalize_point(world, &result.abs_tile_x, &result.tile_rel_x);
-  recanonicalize_point(world, &result.abs_tile_y, &result.tile_rel_y);
+  recanonicalize_coord(world, &result.abs_tile_x, &result.tile_rel_x);
+  recanonicalize_coord(world, &result.abs_tile_y, &result.tile_rel_y);
   return result;
 }
 
@@ -214,7 +214,7 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
     }
     else {
-      real32 velocity = 10.0f * input->dt;
+      real32 velocity = 5.0f * input->dt;
       real32 player_dx = 0.0f;
       real32 player_dy = 0.0f;
       if (controller->move_up.ended_down) {
@@ -228,6 +228,10 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       }
       if (controller->move_right.ended_down) {
         player_dx = 1.0f;
+      }
+
+      if (controller->action_up.ended_down) {
+        velocity *= 5;
       }
 
       world_position player_pos = {};
@@ -260,8 +264,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
 
-  real32 center_x = 0.5f*((real32)buffer->width);
-  real32 center_y = 0.5f*((real32)buffer->height);
+  real32 screen_center_x = 0.5f*((real32)buffer->width);
+  real32 screen_center_y = 0.5f*((real32)buffer->height);
 
   for (int32 rel_row = -10; rel_row < 10; rel_row++) {
     for (int32 rel_column = -20; rel_column < 20; rel_column++) {
@@ -280,11 +284,13 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
         gray = 0.3f;
       }
 
-      real32 min_x = center_x - state->player_position.tile_rel_x*world.meters_to_pixels + ((real32)rel_column * world.tile_side_in_pixels);
-      real32 min_y = center_y + state->player_position.tile_rel_y*world.meters_to_pixels - ((real32)rel_row * world.tile_side_in_pixels);
-      real32 max_x = min_x + world.tile_side_in_pixels;
-      real32 max_y = min_y - world.tile_side_in_pixels;
-      draw_rectangle(buffer, min_x, max_y, max_x, min_y, gray, gray, gray);
+      real32 cen_x = screen_center_x - state->player_position.tile_rel_x*world.meters_to_pixels + ((real32)rel_column * world.tile_side_in_pixels);
+      real32 cen_y = screen_center_y + state->player_position.tile_rel_y*world.meters_to_pixels - ((real32)rel_row * world.tile_side_in_pixels);
+      real32 min_x = cen_x - 0.5f*world.tile_side_in_pixels;
+      real32 min_y = cen_y - 0.5f*world.tile_side_in_pixels;
+      real32 max_x = cen_x + 0.5f*world.tile_side_in_pixels;
+      real32 max_y = cen_y + 0.5f*world.tile_side_in_pixels;
+      draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
 
     }
   }
@@ -295,10 +301,10 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   real32 player_b = 0.5f;
   world_position pos = state->player_position;
   real32 player_left =
-    center_x
+    screen_center_x
     - 0.5f*player_width*world.meters_to_pixels;
   real32 player_top =
-    center_y
+    screen_center_y
     - player_height*world.meters_to_pixels;
 
   draw_rectangle(buffer,
