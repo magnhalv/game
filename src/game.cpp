@@ -260,8 +260,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
 
-  real32 center_x = 0.5f*((real32)buffer->width - state->player_position.tile_rel_x*world.meters_to_pixels);
-  real32 center_y = 0.5f*((real32)buffer->height + state->player_position.tile_rel_y*world.meters_to_pixels);
+  real32 center_x = 0.5f*((real32)buffer->width);
+  real32 center_y = 0.5f*((real32)buffer->height);
 
   for (int32 rel_row = -10; rel_row < 10; rel_row++) {
     for (int32 rel_column = -20; rel_column < 20; rel_column++) {
@@ -280,9 +280,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
         gray = 0.3f;
       }
 
-      real32 min_x = center_x + ((real32)rel_column
- * world.tile_side_in_pixels);
-      real32 min_y = center_y - ((real32)rel_row * world.tile_side_in_pixels);
+      real32 min_x = center_x - state->player_position.tile_rel_x*world.meters_to_pixels + ((real32)rel_column * world.tile_side_in_pixels);
+      real32 min_y = center_y + state->player_position.tile_rel_y*world.meters_to_pixels - ((real32)rel_row * world.tile_side_in_pixels);
       real32 max_x = min_x + world.tile_side_in_pixels;
       real32 max_y = min_y - world.tile_side_in_pixels;
       draw_rectangle(buffer, min_x, max_y, max_x, min_y, gray, gray, gray);
@@ -297,11 +296,9 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   world_position pos = state->player_position;
   real32 player_left =
     center_x
-    + pos.tile_rel_x*world.meters_to_pixels
     - 0.5f*player_width*world.meters_to_pixels;
   real32 player_top =
     center_y
-    - pos.tile_rel_y*world.meters_to_pixels
     - player_height*world.meters_to_pixels;
 
   draw_rectangle(buffer,
