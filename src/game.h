@@ -24,6 +24,8 @@ typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
+typedef size_t memory_index;
+
 typedef int32 bool32;
 
 typedef float real32;
@@ -165,45 +167,24 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *thread, game_memory *memory, game_sound_output_buffer *sound_buffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
-struct tile_chunk {
-  uint32 *tiles;
-};
 
+#include "game_intrinsics.h"
+#include "game_tile.h"
 
-struct tile_chunk_position {
-  uint32 tile_chunk_x;
-  uint32 tile_chunk_y;
-
-  uint32 rel_tile_x;
-  uint32 rel_tile_y;
-};
-
-struct world_position {
-
-  uint32 abs_tile_x;
-  uint32 abs_tile_y;
-
-  // NOTE: tile relative x,y
-  real32 tile_rel_x;
-  real32 tile_rel_y;
+struct memory_arena {
+  memory_index size;
+  uint8 *base;
+  memory_index used;
 };
 
 struct world {
-  uint32 chunk_shift;
-  uint32 chunk_mask;
-  uint32 chunk_dim;
-
-  real32 tile_side_in_meters;
-  int32 tile_side_in_pixels;
-  real32 meters_to_pixels;
-
-  uint32 tile_chunk_count_x;
-  uint32 tile_chunk_count_y;
-  tile_chunk *tile_chunks;
+  tile_map *tile_map;
 };
 
 struct game_state {
-  world_position player_position;
+  world *world;
+  tile_map_position player_position;
+  memory_arena world_arena;
 };
 
 
