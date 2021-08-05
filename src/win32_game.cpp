@@ -770,8 +770,8 @@ int CALLBACK WinMain(HINSTANCE instance,
 
       thread_context thread = {};
       game_memory game_memory = {};
-      game_memory.permanent_storage_size = Megabytes(64);
-      game_memory.transient_storage_size = Gigabytes((uint64)1);
+      game_memory.permanent_storage_size = Gigabytes((uint64)2);
+      game_memory.transient_storage_size = Megabytes((uint64)64);
 
       win32_state.total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
       win32_state.game_memory_block = VirtualAlloc(base_address,
