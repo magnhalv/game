@@ -1,4 +1,5 @@
 #include "game.h"
+#include "game_random.h"
 #include "game_tile.cpp"
 
 /** internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state *state) {
@@ -73,23 +74,7 @@ internal void draw_rectangle(game_offscreen_buffer *buffer,
   }
 }
 
-internal void initialize_arena(memory_arena *arena, memory_index size, uint8 *base) {
-  arena->size = size;
-  arena->base = base;
-  arena->used = 0;
-}
-
-#define PushStruct(arena, type) (type *)push_size_(arena, sizeof(type))
-#define PushArray(arena, count, type) (type *)push_size_(arena, (count*sizeof(type)))
-void *push_size_(memory_arena *arena, memory_index size) {
-
-  //TODO: Clear to zero
-  Assert((arena->used + size) <= arena->size);
-  void *result = arena->base + arena->used;
-  arena->used += size;
-
-  return result;
-}
+global_variable uint32 random_number_index = 0;
 
 extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 {
@@ -123,49 +108,79 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 #define TILE_MAP_DIM_X 256
 #define TILE_MAP_DIM_Y 256
     tile_map->tile_side_in_meters = 1.4f;
-    tile_map->tile_side_in_pixels = 64;
+    tile_map->tile_side_in_pixels = 6;
     tile_map->meters_to_pixels = (real32)tile_map->tile_side_in_pixels / tile_map->tile_side_in_meters;
 
     // Note: This is set to be using 256x256 tile chunks
-    tile_map->chunk_shift = 8;
+    tile_map->chunk_shift = 4;
     tile_map->chunk_mask = (1 << tile_map->chunk_shift) - 1;
     tile_map->chunk_dim = (1 << tile_map->chunk_shift);
 
-    tile_map->tile_chunk_count_x = 64;
-    tile_map->tile_chunk_count_y = 64;
+    tile_map->tile_chunk_count_x = 128;
+    tile_map->tile_chunk_count_y = 128;
     tile_map->tile_chunks = PushArray(&state->world_arena,
                                       tile_map->tile_chunk_count_x*tile_map->tile_chunk_count_y,
                                       tile_chunk);
 
-    for (uint32 y = 0; y < tile_map->tile_chunk_count_y; y++) {
-        for (uint32 x = 0; x < tile_map->tile_chunk_count_x; x++) {
-        tile_map->tile_chunks[y*tile_map->tile_chunk_count_x + x].tiles =
-          PushArray(&state->world_arena, tile_map->chunk_dim*tile_map->chunk_dim, uint32);
-      }
-    }
-
     uint32 tiles_per_height = 9;
     uint32 tiles_per_width = 17;
 
-    for (uint32 screen_y = 0; screen_y < 32; screen_y++) {
-      for (uint32 screen_x = 0; screen_x < 32; screen_x++) {
-        for (uint32 tile_y = 0; tile_y < tiles_per_height; tile_y++) {
-          for (uint32 tile_x = 0; tile_x < tiles_per_width; tile_x++) {
-            uint32 abs_tile_x = screen_x*tiles_per_width + tile_x;
-            uint32 abs_tile_y = screen_y*tiles_per_height + tile_y;
+    uint32 screen_x = 0;
+    uint32 screen_y = 0;
 
-            uint32 tile_value = 0;
-            if (tile_x == 0 || tile_x == (tiles_per_width - 1)) {
-              tile_value = 1;
-            }
+    bool32 door_left = false;
+    bool32 door_right = false;
+    bool32 door_top = false;
+    bool32 door_bottom = false;
 
-            if (tile_y == 0 || tile_y == (tiles_per_height - 1)) {
-              tile_value = 1;
-            }
+    for(uint32 screen_index = 0; screen_index < 100; screen_index++) {
 
-            set_tile_value(&state->world_arena, tile_map, abs_tile_x, abs_tile_y, tile_value);
+      Assert(random_number_index < ArrayCount(random_number_table));
+      uint32 random_choice = random_number_table[random_number_index++] % 2;
+
+      if (random_choice == 0) {
+        door_right = true;
+      }
+      else {
+        door_top = true;
+      }
+
+      for (uint32 tile_y = 0; tile_y < tiles_per_height; tile_y++) {
+        for (uint32 tile_x = 0; tile_x < tiles_per_width; tile_x++) {
+          uint32 abs_tile_x = screen_x*tiles_per_width + tile_x;
+          uint32 abs_tile_y = screen_y*tiles_per_height + tile_y;
+
+          uint32 tile_value = WALKABLE;
+          if ((tile_x == 0) && (!door_left || (tile_y != (tiles_per_height/2)))) {
+            tile_value = WALL;
           }
+
+          if ((tile_x == tiles_per_width-1) && (!door_right || (tile_y != tiles_per_height/2))) {
+            tile_value = WALL;
+          }
+
+
+          if ((tile_y == 0) && (!door_bottom || (tile_x != (tiles_per_width/2)))) {
+            tile_value = WALL;
+          }
+          if ((tile_y == tiles_per_height-1) && (!door_top || (tile_x != (tiles_per_width/2)))) {
+            tile_value = WALL;
+          }
+
+
+          set_tile_value(&state->world_arena, tile_map, abs_tile_x, abs_tile_y, tile_value);
         }
+      }
+      // TODO: Random number generator
+      door_left = door_right;
+      door_bottom = door_top;
+      door_right = false;
+      door_top = false;
+      if (random_choice == 0) {
+        screen_x++;
+      }
+      else {
+        screen_y++;
       }
     }
   }
@@ -237,31 +252,32 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   real32 screen_center_x = 0.5f*((real32)buffer->width);
   real32 screen_center_y = 0.5f*((real32)buffer->height);
 
-  for (int32 rel_row = -10; rel_row < 10; rel_row++) {
-    for (int32 rel_column = -20; rel_column < 20; rel_column++) {
+  for (int32 rel_row = -100; rel_row < 100; rel_row++) {
+    for (int32 rel_column = -200; rel_column < 200; rel_column++) {
       tile_map_position player_pos = state->player_position;
 
       uint32 column = player_pos.abs_tile_x + rel_column;
       uint32 row = player_pos.abs_tile_y + rel_row;
 
       uint32 tile_value = get_tile_value(tile_map, column, row);
-      real32 gray = 0.5f;
-      if (tile_value == 1) {
-        gray = 1.0f;
+      if (tile_value > 0) {
+        real32 gray = 0.5f;
+        if (tile_value == WALL) {
+          gray = 1.0f;
+        }
+
+        if ((column == state->player_position.abs_tile_x) && (row == state->player_position.abs_tile_y)) {
+          gray = 0.3f;
+        }
+
+        real32 cen_x = screen_center_x - state->player_position.tile_rel_x*tile_map->meters_to_pixels + ((real32)rel_column * tile_map->tile_side_in_pixels);
+        real32 cen_y = screen_center_y + state->player_position.tile_rel_y*tile_map->meters_to_pixels - ((real32)rel_row * tile_map->tile_side_in_pixels);
+        real32 min_x = cen_x - 0.5f*tile_map->tile_side_in_pixels;
+        real32 min_y = cen_y - 0.5f*tile_map->tile_side_in_pixels;
+        real32 max_x = cen_x + 0.5f*tile_map->tile_side_in_pixels;
+        real32 max_y = cen_y + 0.5f*tile_map->tile_side_in_pixels;
+        draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
       }
-
-      if ((column == state->player_position.abs_tile_x) && (row == state->player_position.abs_tile_y)) {
-        gray = 0.3f;
-      }
-
-      real32 cen_x = screen_center_x - state->player_position.tile_rel_x*tile_map->meters_to_pixels + ((real32)rel_column * tile_map->tile_side_in_pixels);
-      real32 cen_y = screen_center_y + state->player_position.tile_rel_y*tile_map->meters_to_pixels - ((real32)rel_row * tile_map->tile_side_in_pixels);
-      real32 min_x = cen_x - 0.5f*tile_map->tile_side_in_pixels;
-      real32 min_y = cen_y - 0.5f*tile_map->tile_side_in_pixels;
-      real32 max_x = cen_x + 0.5f*tile_map->tile_side_in_pixels;
-      real32 max_y = cen_y + 0.5f*tile_map->tile_side_in_pixels;
-      draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
-
     }
   }
 

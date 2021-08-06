@@ -1,5 +1,8 @@
 #if !defined(GAME_TILE_H)
 
+#define WALKABLE 1
+#define WALL 2
+
 struct tile_map_position {
 
   uint32 abs_tile_x;

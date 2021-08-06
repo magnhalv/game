@@ -167,15 +167,36 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *thread, game_memory *memory, game_sound_output_buffer *sound_buffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
-
-#include "game_intrinsics.h"
-#include "game_tile.h"
-
+/** Memory **/
 struct memory_arena {
   memory_index size;
   uint8 *base;
   memory_index used;
 };
+
+
+internal void initialize_arena(memory_arena *arena, memory_index size, uint8 *base) {
+  arena->size = size;
+  arena->base = base;
+  arena->used = 0;
+}
+
+#define PushStruct(arena, type) (type *)push_size_(arena, sizeof(type))
+#define PushArray(arena, count, type) (type *)push_size_(arena, (count*sizeof(type)))
+void *push_size_(memory_arena *arena, memory_index size) {
+
+  //TODO: Clear to zero
+  Assert((arena->used + size) <= arena->size);
+  void *result = arena->base + arena->used;
+  arena->used += size;
+
+  return result;
+}
+
+/** END Memory **/
+
+#include "game_intrinsics.h"
+#include "game_tile.h"
 
 struct world {
   tile_map *tile_map;

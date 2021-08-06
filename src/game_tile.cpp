@@ -39,15 +39,14 @@ internal void set_tile_value_unchecked(tile_map *tile_map, tile_chunk *tile_chun
 
 internal uint32 get_tile_value(tile_map *tile_map, tile_chunk *tile_chunk, uint32 test_tile_x, uint32 test_tile_y) {
   uint32 tile_chunk_value = 0;
-  if (tile_chunk) {
+  if (tile_chunk && tile_chunk->tiles) {
     tile_chunk_value = get_tile_value_unchecked(tile_map, tile_chunk, test_tile_x, test_tile_y);
   }
   return tile_chunk_value;
 }
 
 internal void set_tile_value(tile_map *tile_map, tile_chunk *tile_chunk, uint32 tile_x, uint32 tile_y, uint32 tile_value) {
-  uint32 tile_chunk_value = 0;
-  if (tile_chunk) {
+  if (tile_chunk && tile_chunk->tiles) {
     set_tile_value_unchecked(tile_map, tile_chunk, tile_x, tile_y, tile_value);
   }
 }
@@ -74,7 +73,7 @@ internal uint32 get_tile_value(tile_map *tile_map, uint32 abs_tile_x, uint32 abs
 
 internal bool32 is_tile_map_point_empty(tile_map *tile_map, tile_map_position pos) {
   uint32 tile_chunk_value = get_tile_value(tile_map, pos.abs_tile_x, pos.abs_tile_y);
-  bool32 is_empty = (tile_chunk_value == 0);
+  bool32 is_empty = (tile_chunk_value == WALKABLE);
   return is_empty;
 }
 
@@ -87,6 +86,15 @@ internal void set_tile_value(memory_arena *arena,
   tile_chunk *tile_chunk = get_tile_chunk(tile_map, chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y);
   // TODO: On-demand tile chunk creation
   Assert(tile_chunk);
+
+  if (!tile_chunk->tiles) {
+    uint32 tile_count = tile_map->chunk_dim*tile_map->chunk_dim;
+    tile_chunk->tiles = PushArray(arena, tile_count, uint32);
+    for (uint32 tile_index = 0; tile_index < tile_count; tile_index++) {
+      tile_chunk->tiles[tile_index] = 1;
+    }
+
+  }
 
   set_tile_value(tile_map, tile_chunk, chunk_pos.rel_tile_x, chunk_pos.rel_tile_y, tile_value);
 }
