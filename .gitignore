@@ -2,5 +2,6 @@ build
 **/*~
 .vs
 data/*
+!data/bmp
 test.out
 
