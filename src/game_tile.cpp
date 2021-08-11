@@ -1,19 +1,3 @@
-inline void recanonicalize_coord(tile_map *tile_map, uint32 *tile, real32 *tile_rel) {
-  int32 offset = round_real32_to_int32(*tile_rel / tile_map->tile_side_in_meters);
-  *tile += offset;
-  *tile_rel -= offset * tile_map->tile_side_in_meters;
-
-  Assert(*tile_rel >= -0.5f*tile_map->tile_side_in_meters);
-  Assert(*tile_rel <= 0.5f*tile_map->tile_side_in_meters);
-}
-
-inline tile_map_position recanonicalize_position(tile_map *tile_map, tile_map_position pos) {
-  tile_map_position result = pos;
-  recanonicalize_coord(tile_map, &result.abs_tile_x, &result.tile_rel_x);
-  recanonicalize_coord(tile_map, &result.abs_tile_y, &result.tile_rel_y);
-  return result;
-}
-
 inline tile_chunk* get_tile_chunk(tile_map *tile_map, uint32 x, uint32 y, uint32 z) {
   if ((x < tile_map->tile_chunk_count_x)
       && (y < tile_map->tile_chunk_count_y)
@@ -73,10 +57,16 @@ internal uint32 get_tile_value(tile_map *tile_map, uint32 abs_tile_x, uint32 abs
   return tile_value;
 }
 
+internal uint32 get_tile_value(tile_map *tile_map, tile_map_position pos) {
+  uint32 tile_value = get_tile_value(tile_map, pos.abs_tile_x, pos.abs_tile_y, pos.abs_tile_z);
+  return tile_value;
+}
 
 internal bool32 is_tile_map_point_empty(tile_map *tile_map, tile_map_position pos) {
   uint32 tile_chunk_value = get_tile_value(tile_map, pos.abs_tile_x, pos.abs_tile_y, pos.abs_tile_z);
-  bool32 is_empty = (tile_chunk_value == WALKABLE);
+  bool32 is_empty = (tile_chunk_value == WALKABLE)
+    || (tile_chunk_value == STAIRS_UP)
+    || (tile_chunk_value == STAIRS_DOWN);
   return is_empty;
 }
 
@@ -104,4 +94,29 @@ internal void set_tile_value(memory_arena *arena,
   }
 
   set_tile_value(tile_map, tile_chunk, chunk_pos.rel_tile_x, chunk_pos.rel_tile_y, tile_value);
+}
+
+inline bool32 are_on_same_tile(tile_map_position *a, tile_map_position *b) {
+  bool32 result = ((a->abs_tile_x == b->abs_tile_x)
+                   && (a->abs_tile_y == b->abs_tile_y)
+                   && (a->abs_tile_z == b->abs_tile_z));
+  return result;
+}
+
+
+// TODO: Do these belong in a position file?
+inline void recanonicalize_coord(tile_map *tile_map, uint32 *tile, real32 *tile_rel) {
+  int32 offset = round_real32_to_int32(*tile_rel / tile_map->tile_side_in_meters);
+  *tile += offset;
+  *tile_rel -= offset * tile_map->tile_side_in_meters;
+
+  Assert(*tile_rel >= -0.5f*tile_map->tile_side_in_meters);
+  Assert(*tile_rel <= 0.5f*tile_map->tile_side_in_meters);
+}
+
+inline tile_map_position recanonicalize_position(tile_map *tile_map, tile_map_position pos) {
+  tile_map_position result = pos;
+  recanonicalize_coord(tile_map, &result.abs_tile_x, &result.tile_rel_x);
+  recanonicalize_coord(tile_map, &result.abs_tile_y, &result.tile_rel_y);
+  return result;
 }

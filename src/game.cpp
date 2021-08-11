@@ -132,28 +132,31 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     bool32 door_right = false;
     bool32 door_top = false;
     bool32 door_bottom = false;
-    bool32 door_up = false;
-    bool32 door_down = false;
+
+    bool32 stairs_up = false;
+    bool32 stairs_down = false;
+    bool32 previous_stairs_was_up = false;
 
     for(uint32 screen_index = 0; screen_index < 100; screen_index++) {
 
       Assert(random_number_index < ArrayCount(random_number_table));
       uint32 random_choice;
-      if (door_up || door_down) {
+      if (stairs_up || stairs_down) {
         random_choice = random_number_table[random_number_index++] % 2;
       }
       else {
         random_choice = random_number_table[random_number_index++] % 3;
       }
-
-
+      bool32 created_stairs = false;
       if (random_choice == 2) {
+        created_stairs = true;
         if (abs_tile_z == 0) {
-          door_up = true;
+          stairs_up = true;
         }
         else {
-          door_down = true;
+          stairs_down = true;
         }
+
       }
       else if (random_choice == 1) {
         door_top = true;
@@ -181,11 +184,11 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
             tile_value = WALL;
           }
           if ((tile_x == 5) && (tile_y == 5)) {
-            if (door_up) {
-              tile_value = STAIRS_UP;
-            }
-            else if (door_down) {
+            if (stairs_down) {
               tile_value = STAIRS_DOWN;
+            }
+            else if (stairs_up) {
+              tile_value = STAIRS_UP;
             }
           }
 
@@ -196,17 +199,13 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       door_left = door_right;
       door_bottom = door_top;
 
-      if (door_up){
-        door_down = true;
-        door_up = false;
-      }
-      else if (door_down) {
-        door_down = false;
-        door_up = true;
+      if (created_stairs){
+        stairs_up = !stairs_up;
+        stairs_down = !stairs_down;
       }
       else {
-        door_up = false;
-        door_down = false;
+        stairs_up = false;
+        stairs_down = false;
       }
 
       door_right = false;
@@ -266,27 +265,37 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
         velocity *= 5;
       }
 
-      tile_map_position player_pos = {};
-      player_pos = state->player_position;
-      player_pos.tile_rel_x = state->player_position.tile_rel_x + (player_dx*velocity);
-      player_pos.tile_rel_y = state->player_position.tile_rel_y + (player_dy*velocity);
-      player_pos = recanonicalize_position(tile_map, player_pos);
+      tile_map_position new_player_pos = {};
+      new_player_pos = state->player_position;
+      new_player_pos.tile_rel_x = state->player_position.tile_rel_x + (player_dx*velocity);
+      new_player_pos.tile_rel_y = state->player_position.tile_rel_y + (player_dy*velocity);
+      new_player_pos = recanonicalize_position(tile_map, new_player_pos);
 
-      tile_map_position player_left_pos = player_pos;
-      player_left_pos.tile_rel_x -= 0.5f*player_width;
-      player_left_pos = recanonicalize_position(tile_map, player_left_pos);
+      tile_map_position new_player_left_pos = new_player_pos;
+      new_player_left_pos.tile_rel_x -= 0.5f*player_width;
+      new_player_left_pos = recanonicalize_position(tile_map, new_player_left_pos);
 
-      tile_map_position player_right_pos = player_pos;
-      player_right_pos.tile_rel_x += 0.5f*player_width;
-      player_right_pos = recanonicalize_position(tile_map, player_right_pos);
+      tile_map_position new_player_right_pos = new_player_pos;
+      new_player_right_pos.tile_rel_x += 0.5f*player_width;
+      new_player_right_pos = recanonicalize_position(tile_map, new_player_right_pos);
 
       if (
-          is_tile_map_point_empty(tile_map, player_pos) &&
-          is_tile_map_point_empty(tile_map, player_left_pos) &&
-          is_tile_map_point_empty(tile_map, player_right_pos)
+          is_tile_map_point_empty(tile_map, new_player_pos) &&
+          is_tile_map_point_empty(tile_map, new_player_left_pos) &&
+          is_tile_map_point_empty(tile_map, new_player_right_pos)
           ) {
+        if (!are_on_same_tile(&state->player_position, &new_player_pos)) {
+          uint32 new_tile_value = get_tile_value(tile_map, new_player_pos);
 
-        state->player_position = player_pos;
+          if (new_tile_value == STAIRS_UP) {
+            new_player_pos.abs_tile_z++;
+          }
+          if (new_tile_value == STAIRS_DOWN) {
+            new_player_pos.abs_tile_z--;
+          }
+        }
+
+        state->player_position = new_player_pos;
       }
     }
   }
@@ -306,7 +315,7 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       uint32 column = player_pos.abs_tile_x + rel_column;
       uint32 row = player_pos.abs_tile_y + rel_row;
 
-      uint32 tile_value = get_tile_value(tile_map, column, row, 0);
+      uint32 tile_value = get_tile_value(tile_map, column, row, player_pos.abs_tile_z);
       if (tile_value > 0) {
         real32 gray = 0.5f;
         if (tile_value == WALL) {
