@@ -14,9 +14,11 @@ inline tile_map_position recanonicalize_position(tile_map *tile_map, tile_map_po
   return result;
 }
 
-inline tile_chunk* get_tile_chunk(tile_map *tile_map, uint32 x, uint32 y) {
-  if ((x < tile_map->tile_chunk_count_x) && (y < tile_map->tile_chunk_count_y)) {
-    return &tile_map->tile_chunks[x + y*tile_map->tile_chunk_count_x];
+inline tile_chunk* get_tile_chunk(tile_map *tile_map, uint32 x, uint32 y, uint32 z) {
+  if ((x < tile_map->tile_chunk_count_x)
+      && (y < tile_map->tile_chunk_count_y)
+      && (z < tile_map->tile_chunk_count_z)) {
+    return &tile_map->tile_chunks[x + y*tile_map->tile_chunk_count_x + (z*tile_map->tile_chunk_count_x*tile_map->tile_chunk_count_y)];
   }
   return NULL;
 }
@@ -51,11 +53,12 @@ internal void set_tile_value(tile_map *tile_map, tile_chunk *tile_chunk, uint32 
   }
 }
 
-inline tile_chunk_position get_chunk_position(tile_map *tile_map, uint32 abs_tile_x, uint32 abs_tile_y) {
+inline tile_chunk_position get_chunk_position(tile_map *tile_map, uint32 abs_tile_x, uint32 abs_tile_y, uint32 abs_tile_z) {
   tile_chunk_position result;
 
   result.tile_chunk_x = abs_tile_x >> tile_map->chunk_shift;
   result.tile_chunk_y = abs_tile_y >> tile_map->chunk_shift;
+  result.tile_chunk_z = abs_tile_z;
 
   result.rel_tile_x = abs_tile_x & tile_map->chunk_mask;
   result.rel_tile_y = abs_tile_y & tile_map->chunk_mask;
@@ -63,16 +66,16 @@ inline tile_chunk_position get_chunk_position(tile_map *tile_map, uint32 abs_til
   return result;
 }
 
-internal uint32 get_tile_value(tile_map *tile_map, uint32 abs_tile_x, uint32 abs_tile_y) {
-  tile_chunk_position chunk_pos = get_chunk_position(tile_map, abs_tile_x, abs_tile_y);
-  tile_chunk *tile_chunk = get_tile_chunk(tile_map, chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y);
+internal uint32 get_tile_value(tile_map *tile_map, uint32 abs_tile_x, uint32 abs_tile_y, uint32 abs_tile_z) {
+  tile_chunk_position chunk_pos = get_chunk_position(tile_map, abs_tile_x, abs_tile_y, abs_tile_z);
+  tile_chunk *tile_chunk = get_tile_chunk(tile_map, chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y, chunk_pos.tile_chunk_z);
   uint32 tile_value = get_tile_value(tile_map, tile_chunk, chunk_pos.rel_tile_x, chunk_pos.rel_tile_y);
   return tile_value;
 }
 
 
 internal bool32 is_tile_map_point_empty(tile_map *tile_map, tile_map_position pos) {
-  uint32 tile_chunk_value = get_tile_value(tile_map, pos.abs_tile_x, pos.abs_tile_y);
+  uint32 tile_chunk_value = get_tile_value(tile_map, pos.abs_tile_x, pos.abs_tile_y, pos.abs_tile_z);
   bool32 is_empty = (tile_chunk_value == WALKABLE);
   return is_empty;
 }
@@ -81,9 +84,13 @@ internal void set_tile_value(memory_arena *arena,
                              tile_map *tile_map,
                              uint32 abs_tile_x,
                              uint32 abs_tile_y,
+                             uint32 abs_tile_z,
                              uint32 tile_value) {
-  tile_chunk_position chunk_pos = get_chunk_position(tile_map, abs_tile_x, abs_tile_y);
-  tile_chunk *tile_chunk = get_tile_chunk(tile_map, chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y);
+  tile_chunk_position chunk_pos = get_chunk_position(tile_map, abs_tile_x, abs_tile_y, abs_tile_z);
+  tile_chunk *tile_chunk = get_tile_chunk(tile_map,
+                                          chunk_pos.tile_chunk_x,
+                                          chunk_pos.tile_chunk_y,
+                                          chunk_pos.tile_chunk_z);
   // TODO: On-demand tile chunk creation
   Assert(tile_chunk);
 
