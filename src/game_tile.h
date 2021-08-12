@@ -11,9 +11,9 @@ struct tile_map_position {
   uint32 abs_tile_y;
   uint32 abs_tile_z;
 
-  // NOTE: tile relative x,y
-  real32 tile_rel_x;
-  real32 tile_rel_y;
+  // NOTE: Tile offsets from center
+  real32 offset_x;
+  real32 offset_y;
 };
 
 struct tile_chunk {

@@ -92,8 +92,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     memory->is_initialized = true;
     state->player_position.abs_tile_x = 3;
     state->player_position.abs_tile_y = 3;
-    state->player_position.tile_rel_x = 5.0f;
-    state->player_position.tile_rel_y = 5.0f;
+    state->player_position.offset_x = 5.0f;
+    state->player_position.offset_y = 5.0f;
 
     initialize_arena(&state->world_arena,
                      memory->permanent_storage_size - sizeof(game_state),
@@ -267,16 +267,16 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
       tile_map_position new_player_pos = {};
       new_player_pos = state->player_position;
-      new_player_pos.tile_rel_x = state->player_position.tile_rel_x + (player_dx*velocity);
-      new_player_pos.tile_rel_y = state->player_position.tile_rel_y + (player_dy*velocity);
+      new_player_pos.offset_x = state->player_position.offset_x + (player_dx*velocity);
+      new_player_pos.offset_y = state->player_position.offset_y + (player_dy*velocity);
       new_player_pos = recanonicalize_position(tile_map, new_player_pos);
 
       tile_map_position new_player_left_pos = new_player_pos;
-      new_player_left_pos.tile_rel_x -= 0.5f*player_width;
+      new_player_left_pos.offset_x -= 0.5f*player_width;
       new_player_left_pos = recanonicalize_position(tile_map, new_player_left_pos);
 
       tile_map_position new_player_right_pos = new_player_pos;
-      new_player_right_pos.tile_rel_x += 0.5f*player_width;
+      new_player_right_pos.offset_x += 0.5f*player_width;
       new_player_right_pos = recanonicalize_position(tile_map, new_player_right_pos);
 
       if (
@@ -330,8 +330,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
           gray = 0.3f;
         }
 
-        real32 cen_x = screen_center_x - state->player_position.tile_rel_x*meters_to_pixels + ((real32)rel_column * tile_side_in_pixels);
-        real32 cen_y = screen_center_y + state->player_position.tile_rel_y*meters_to_pixels - ((real32)rel_row * tile_side_in_pixels);
+        real32 cen_x = screen_center_x - state->player_position.offset_x*meters_to_pixels + ((real32)rel_column * tile_side_in_pixels);
+        real32 cen_y = screen_center_y + state->player_position.offset_y*meters_to_pixels - ((real32)rel_row * tile_side_in_pixels);
         real32 min_x = cen_x - 0.5f*tile_side_in_pixels;
         real32 min_y = cen_y - 0.5f*tile_side_in_pixels;
         real32 max_x = cen_x + 0.5f*tile_side_in_pixels;

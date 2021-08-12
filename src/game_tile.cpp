@@ -116,7 +116,7 @@ inline void recanonicalize_coord(tile_map *tile_map, uint32 *tile, real32 *tile_
 
 inline tile_map_position recanonicalize_position(tile_map *tile_map, tile_map_position pos) {
   tile_map_position result = pos;
-  recanonicalize_coord(tile_map, &result.abs_tile_x, &result.tile_rel_x);
-  recanonicalize_coord(tile_map, &result.abs_tile_y, &result.tile_rel_y);
+  recanonicalize_coord(tile_map, &result.abs_tile_x, &result.offset_x);
+  recanonicalize_coord(tile_map, &result.abs_tile_y, &result.offset_y);
   return result;
 }
