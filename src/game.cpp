@@ -60,6 +60,41 @@ internal void draw_rectangle(game_offscreen_buffer *buffer,
   }
 }
 
+internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap, real32 real_x, real32 real_y) {
+  int32 min_x = round_real32_to_int32(real_x);
+  int32 min_y = round_real32_to_int32(real_y);
+  int32 max_x = round_real32_to_int32(real_x + (real32)bitmap->width);
+  int32 max_y = round_real32_to_int32(real_y + (real32)bitmap->height);
+
+  if (min_x < 0) {
+    min_x = 0;
+  }
+  if (max_x > buffer->width) {
+    max_x = buffer->width;
+  }
+
+  if (min_y < 0) {
+    min_y = 0;
+  }
+  if (max_y > buffer->height) {
+    max_y = buffer->height;
+  }
+
+  // source row needs to be changed due to clipping
+  uint32 *source_row = bitmap->pixels + (bitmap->width*(bitmap->height-1));
+  uint8 *dest_row = ((uint8*)buffer->memory + min_y*buffer->pitch + min_x*buffer->bytes_per_pixel);
+  for (int y = min_y; y < max_y; y++) {
+
+    uint32 *dest = (uint32*) dest_row;
+    uint32 *source = (uint32 *) source_row;
+    for (int x = min_x; x < max_x; x++) {
+       *dest++ = *source++;
+     }
+     dest_row += buffer->pitch;
+     source_row -= bitmap->width;
+  }
+}
+
 #pragma pack(push, 1)
 struct bitmap_header {
   uint16 file_type;
@@ -75,10 +110,10 @@ struct bitmap_header {
 };
 #pragma pack(pop)
 
-internal uint32* DEBUG_load_bmp(thread_context *thread,
+internal loaded_bitmap DEBUG_load_bmp(thread_context *thread,
                        debug_platform_read_entire_file *read_entire_file,
                        const char *file_name) {
-  uint32 *result = 0;
+  loaded_bitmap result = {};
 
   // Note: Byte order in memory is AA BB GG RR, bottom up.
   // In little endian -> 0xRR GG BB AA
@@ -86,18 +121,24 @@ internal uint32* DEBUG_load_bmp(thread_context *thread,
   if (read_result.content_size != 0) {
     bitmap_header *header = (bitmap_header*)read_result.contents;
     uint32 *pixels = (uint32*)((uint8 *)read_result.contents + header->bitmap_offset);
-    uint32 *source = pixels;
+    uint8 *source = (uint8*)pixels;
 
     for (int32 y = 0; y < header->height; y++) {
       for (int32 x = 0; x < header->width; x++) {
+
         // Note: Caseys BMP files are a bit strange in the layout, so we have to shuffle the colors a bit.
-        *source = (*source >> 8) | (*source << 24);
-        source++;
+        uint8 c0 = source[0]; // alpha
+        uint8 c1 = source[1]; // blue
+        uint8 c2 = source[2]; // green
+        uint8 c3 = source[3]; // red
+
+        *(uint32*)source = (c0 << 24) | (c3 << 16) | (c2 << 8) | (c1 << 0);
+        source += 4;
       }
     }
-    result = pixels;
-
-
+    result.pixels = pixels;
+    result.width = header->width;
+    result.height = header->height;
   }
   return result;
 
@@ -118,7 +159,11 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   game_state *state = (game_state *)memory->permanent_storage;
 
   if (!memory->is_initialized) {
-    state->pixel_pointer = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_background.bmp");
+    state->backdrop = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_background.bmp");
+    state->hero_head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_head.bmp");
+    state->hero_cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_cape.bmp");
+    state->hero_torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_torso.bmp");
+
     memory->is_initialized = true;
     state->player_position.abs_tile_x = 3;
     state->player_position.abs_tile_y = 3;
@@ -335,30 +380,7 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
 
-  int32 pixel_width = 1024;
-  int32 pixel_height = 576;
-  int32 blit_width = pixel_width;
-  int32 blit_height = pixel_height;
-
-  if (blit_width > buffer->width) {
-    blit_width = buffer->width;
-  }
-  if (blit_height > buffer->height) {
-    blit_height = buffer->height;
-  }
-
-
-  uint32 *source_row = state->pixel_pointer + (pixel_width*(pixel_height-1));
-  uint8 *dest_row = (uint8*) buffer->memory;
-  for (int32 y = 0; y < blit_height; y++) {
-    uint32 *dest = (uint32*) dest_row;
-    uint32 *source = (uint32 *) source_row;
-     for (int32 x = 0; x < blit_width; x++) {
-       *dest++ = *source++;
-     }
-     dest_row += buffer->pitch;
-     source_row -= pixel_width;
-  }
+  draw_bitmap(buffer, &state->backdrop, 0, 0);
 
   real32 screen_center_x = 0.5f*((real32)buffer->width);
   real32 screen_center_y = 0.5f*((real32)buffer->height);
@@ -408,12 +430,7 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     screen_center_y
     - player_height*meters_to_pixels;
 
-  draw_rectangle(buffer,
-                 player_left,
-                 player_top,
-                 player_left + player_width*meters_to_pixels,
-                 player_top + player_height*meters_to_pixels,
-                 player_r, player_g, player_b);
+  draw_bitmap(buffer, &state->hero_head, player_left, player_top);
 
 }
 
