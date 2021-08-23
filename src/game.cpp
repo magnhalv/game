@@ -22,20 +22,6 @@
   }
 } **/
 
-/**
-void renderGradient(game_offscreen_buffer *buffer, int xOffset, int yOffset) {
-  uint8 *row = (uint8 *)buffer->memory;
-  for (int y = 0; y < buffer->height; y++) {
-    uint32 *pixel = (uint32*)row;
-    for (int x = 0; x < buffer->width; x++) {
-      uint8 blue = (uint8)(x + xOffset);
-      uint8 green = (uint8)(y + yOffset);
-      *pixel++ = ((green << 16) | blue);
-    }
-    row += buffer->pitch;
-  }
-}
-**/
 
 internal void draw_rectangle(game_offscreen_buffer *buffer,
                              real32 real_min_x, real32 real_min_y, real32 real_max_x, real32 real_max_y,
@@ -74,6 +60,49 @@ internal void draw_rectangle(game_offscreen_buffer *buffer,
   }
 }
 
+#pragma pack(push, 1)
+struct bitmap_header {
+  uint16 file_type;
+  uint32 file_size;
+  uint16 reserved1;
+  uint16 reserved2;
+  uint32 bitmap_offset;
+  uint32 size;
+  int32 width;
+  int32 height;
+  uint16 planes;
+  uint16 bits_per_pixel;
+};
+#pragma pack(pop)
+
+internal uint32* DEBUG_load_bmp(thread_context *thread,
+                       debug_platform_read_entire_file *read_entire_file,
+                       const char *file_name) {
+  uint32 *result = 0;
+
+  // Note: Byte order in memory is AA BB GG RR, bottom up.
+  // In little endian -> 0xRR GG BB AA
+  debug_read_file_result read_result = read_entire_file(thread, file_name);
+  if (read_result.content_size != 0) {
+    bitmap_header *header = (bitmap_header*)read_result.contents;
+    uint32 *pixels = (uint32*)((uint8 *)read_result.contents + header->bitmap_offset);
+    uint32 *source = pixels;
+
+    for (int32 y = 0; y < header->height; y++) {
+      for (int32 x = 0; x < header->width; x++) {
+        // Note: Caseys BMP files are a bit strange in the layout, so we have to shuffle the colors a bit.
+        *source = (*source >> 8) | (*source << 24);
+        source++;
+      }
+    }
+    result = pixels;
+
+
+  }
+  return result;
+
+}
+
 global_variable uint32 random_number_index = 0;
 
 extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
@@ -89,6 +118,7 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   game_state *state = (game_state *)memory->permanent_storage;
 
   if (!memory->is_initialized) {
+    state->pixel_pointer = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_background.bmp");
     memory->is_initialized = true;
     state->player_position.abs_tile_x = 3;
     state->player_position.abs_tile_y = 3;
@@ -305,6 +335,31 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
 
+  int32 pixel_width = 1024;
+  int32 pixel_height = 576;
+  int32 blit_width = pixel_width;
+  int32 blit_height = pixel_height;
+
+  if (blit_width > buffer->width) {
+    blit_width = buffer->width;
+  }
+  if (blit_height > buffer->height) {
+    blit_height = buffer->height;
+  }
+
+
+  uint32 *source_row = state->pixel_pointer + (pixel_width*(pixel_height-1));
+  uint8 *dest_row = (uint8*) buffer->memory;
+  for (int32 y = 0; y < blit_height; y++) {
+    uint32 *dest = (uint32*) dest_row;
+    uint32 *source = (uint32 *) source_row;
+     for (int32 x = 0; x < blit_width; x++) {
+       *dest++ = *source++;
+     }
+     dest_row += buffer->pitch;
+     source_row -= pixel_width;
+  }
+
   real32 screen_center_x = 0.5f*((real32)buffer->width);
   real32 screen_center_y = 0.5f*((real32)buffer->height);
 
@@ -316,7 +371,7 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       uint32 row = player_pos.abs_tile_y + rel_row;
 
       uint32 tile_value = get_tile_value(tile_map, column, row, player_pos.abs_tile_z);
-      if (tile_value > 0) {
+      if (tile_value > 1) {
         real32 gray = 0.5f;
         if (tile_value == WALL) {
           gray = 1.0f;

@@ -736,7 +736,7 @@ int CALLBACK WinMain(HINSTANCE instance,
 
   if (RegisterClass(&windowClass)) {
     HWND window =
-      CreateWindowExA(WS_EX_TOPMOST|WS_EX_LAYERED,
+      CreateWindowExA(0,
                       windowClass.lpszClassName,
                       "Game",
                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
@@ -749,7 +749,7 @@ int CALLBACK WinMain(HINSTANCE instance,
                       instance,
                       0);
     win32_window_dimension dimension = win32_get_window_dimension(window);
-    win32_ResizeDIBSection(&global_back_buffer, 1280, 720);
+    win32_ResizeDIBSection(&global_back_buffer, 960, 540);
     if (window) {
       HDC refresh_dc = GetDC(window);
       int monitor_refresh_hz = 60;

@@ -206,6 +206,12 @@ struct game_state {
   world *world;
   tile_map_position player_position;
   memory_arena world_arena;
+
+
+  uint32 pixel_width;
+  uint32 pixel_height;
+  uint32 *pixel_pointer;
+
 };
 
 
