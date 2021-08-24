@@ -94,6 +94,25 @@ internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap, 
      source_row -= bitmap->width;
   }
 }
+// TODO: MOve this into the instrinsics and call the MSVC version
+
+struct bit_scan_result {
+  bool32 found;
+  uint32 index;
+};
+
+internal bit_scan_result find_least_significant_set_bit(uint32 value) {
+  bit_scan_result result = {};
+
+  for (uint32 test = 0; test < 32; test++) {
+    if (value & (1 << test)) {
+      result.index = test;
+      result.found = true;
+      break;
+    }
+  }
+  return result;
+}
 
 #pragma pack(push, 1)
 struct bitmap_header {
@@ -107,6 +126,16 @@ struct bitmap_header {
   int32 height;
   uint16 planes;
   uint16 bits_per_pixel;
+  uint32 compression;
+  uint32 size_of_bitmap;
+  int32 horz_resolution;
+  int32 vert_resolution;
+  uint32 colors_used;
+  uint32 colors_important;
+
+  uint32 red_mask;
+  uint32 green_mask;
+  uint32 blue_mask;
 };
 #pragma pack(pop)
 
@@ -115,30 +144,44 @@ internal loaded_bitmap DEBUG_load_bmp(thread_context *thread,
                        const char *file_name) {
   loaded_bitmap result = {};
 
-  // Note: Byte order in memory is AA BB GG RR, bottom up.
-  // In little endian -> 0xRR GG BB AA
   debug_read_file_result read_result = read_entire_file(thread, file_name);
   if (read_result.content_size != 0) {
     bitmap_header *header = (bitmap_header*)read_result.contents;
     uint32 *pixels = (uint32*)((uint8 *)read_result.contents + header->bitmap_offset);
-    uint8 *source = (uint8*)pixels;
-
-    for (int32 y = 0; y < header->height; y++) {
-      for (int32 x = 0; x < header->width; x++) {
-
-        // Note: Caseys BMP files are a bit strange in the layout, so we have to shuffle the colors a bit.
-        uint8 c0 = source[0]; // alpha
-        uint8 c1 = source[1]; // blue
-        uint8 c2 = source[2]; // green
-        uint8 c3 = source[3]; // red
-
-        *(uint32*)source = (c0 << 24) | (c3 << 16) | (c2 << 8) | (c1 << 0);
-        source += 4;
-      }
-    }
     result.pixels = pixels;
     result.width = header->width;
     result.height = header->height;
+
+    // NOTE: Byte order in memory is determined in the header
+    uint32 red_mask = header->red_mask;
+    uint32 green_mask = header->green_mask;
+    uint32 blue_mask = header->blue_mask;
+    uint32 alpha_mask = ~(red_mask | green_mask | blue_mask);
+
+
+    bit_scan_result red_shift = find_least_significant_set_bit(red_mask);
+    bit_scan_result green_shift = find_least_significant_set_bit(green_mask);
+    bit_scan_result blue_shift = find_least_significant_set_bit(blue_mask);
+    bit_scan_result alpha_shift = find_least_significant_set_bit(alpha_mask);
+
+    Assert(red_shift.found);
+    Assert(green_shift.found);
+    Assert(blue_shift.found);
+    Assert(alpha_shift.found);
+
+    uint32 *source_dest = pixels;
+    for (int32 y = 0; y < header->height; y++) {
+      for (int32 x = 0; x < header->width; x++) {
+        uint32 c = *source_dest;
+
+        uint32 red = (((c >> red_shift.index) & 0xFF) << 16);
+        uint32 green = (((c >> green_shift.index) & 0xFF) << 8);
+        uint32 blue = (((c >> blue_shift.index) & 0xFF) << 0);
+        uint32 alpha = (((c >> alpha_shift.index) & 0xFF) << 24);
+
+        *source_dest++ = alpha | red | blue | green;
+      }
+    }
   }
   return result;
 
