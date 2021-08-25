@@ -208,15 +208,20 @@ struct loaded_bitmap {
   uint32 *pixels;
 };
 
+struct hero_bitmaps {
+  loaded_bitmap head;
+  loaded_bitmap cape;
+  loaded_bitmap torso;
+};
+
 struct game_state {
   world *world;
   tile_map_position player_position;
   memory_arena world_arena;
 
   loaded_bitmap backdrop;
-  loaded_bitmap hero_head;
-  loaded_bitmap hero_cape;
-  loaded_bitmap hero_torso;
+  hero_bitmaps hero_bitmaps[4];
+  uint32 hero_facing_direction;
 };
 
 
