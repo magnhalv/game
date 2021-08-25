@@ -88,30 +88,28 @@ internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap, 
     uint32 *dest = (uint32*) dest_row;
     uint32 *source = (uint32 *) source_row;
     for (int x = min_x; x < max_x; x++) {
-       *dest++ = *source++;
-     }
-     dest_row += buffer->pitch;
-     source_row -= bitmap->width;
-  }
-}
-// TODO: MOve this into the instrinsics and call the MSVC version
+      real32 alpha = (real32)((*source >> 24) & 0XFF) / 255.0f;
+      real32 source_red = (real32)((*source >> 16) & 0XFF);
+      real32 source_green = (real32)((*source >> 8) & 0XFF);
+      real32 source_blue = (real32)((*source >> 0) & 0XFF);
 
-struct bit_scan_result {
-  bool32 found;
-  uint32 index;
-};
+      real32 dest_red = (real32)((*dest >> 16) & 0XFF);
+      real32 dest_green = (real32)((*dest >> 8) & 0XFF);
+      real32 dest_blue = (real32)((*dest >> 0) & 0XFF);
 
-internal bit_scan_result find_least_significant_set_bit(uint32 value) {
-  bit_scan_result result = {};
+      real32 r = (1.0f - alpha)*dest_red + alpha*source_red;
+      real32 g = (1.0f - alpha)*dest_green + alpha*source_green;
+      real32 b = (1.0f - alpha)*dest_blue + alpha*source_blue;
 
-  for (uint32 test = 0; test < 32; test++) {
-    if (value & (1 << test)) {
-      result.index = test;
-      result.found = true;
-      break;
+
+      *dest = (((uint32)(r + 0.5f) << 16) | ((uint32)(g + 0.5f) << 8) | ((uint32)(b + 0.5f)) << 0);
+
+      dest++;
+      source++;
     }
+    dest_row += buffer->pitch;
+    source_row -= bitmap->width;
   }
-  return result;
 }
 
 #pragma pack(push, 1)
@@ -341,7 +339,6 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       }
       else {
         screen_x++;
-
       }
     }
   }

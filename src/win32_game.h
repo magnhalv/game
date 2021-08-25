@@ -1,6 +1,5 @@
 #if !defined(WIN32_GAME_H)
 
-
 struct win32_offscreen_buffer {
   BITMAPINFO Info;
   void *memory;

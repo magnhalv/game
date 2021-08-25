@@ -8,6 +8,24 @@
    1 - Slow code allowed
  */
 
+#if !defined(COMPILED_MSVC)
+#define COMPILER_MSVC 0
+#endif
+
+#if !defined(COMPILER_LLVM)
+#define COMPILER_LLVM 0
+#endif
+
+#if !COMPILER_MSVC && !COMPILER_LLVM
+#if _MSC_VER
+#undef COMPILER_MSVC
+#define COMPILER_MSVC 1
+#else
+// more compilers
+#undef COMPILER_LLVM
+#define COMPILER_LLVM
+#endif
+#endif
 
 #include "game.h"
 
@@ -18,8 +36,8 @@
 #include <intrin.h>
 #include <malloc.h>
 #include <fileapi.h>
-
 #include "win32_game.h"
+
 
 global_variable win32_offscreen_buffer global_back_buffer;
 global_variable bool Running;
