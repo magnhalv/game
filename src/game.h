@@ -209,6 +209,8 @@ struct loaded_bitmap {
 };
 
 struct hero_bitmaps {
+  int32 align_x;
+  int32 align_y;
   loaded_bitmap head;
   loaded_bitmap cape;
   loaded_bitmap torso;

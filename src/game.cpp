@@ -60,7 +60,11 @@ internal void draw_rectangle(game_offscreen_buffer *buffer,
   }
 }
 
-internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap, real32 real_x, real32 real_y) {
+internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap,
+                          real32 real_x, real32 real_y,
+                          int32 align_x = 0, int32 align_y = 0) {
+  real_x -= (real32)align_x;
+  real_y -= (real32)align_y;
   int32 min_x = round_real32_to_int32(real_x);
   int32 min_y = round_real32_to_int32(real_y);
   int32 max_x = round_real32_to_int32(real_x + (real32)bitmap->width);
@@ -201,21 +205,37 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   if (!memory->is_initialized) {
     state->backdrop = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_background.bmp");
-    state->hero_bitmaps[0].head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_right_head.bmp");
-    state->hero_bitmaps[0].cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_right_cape.bmp");
-    state->hero_bitmaps[0].torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_right_torso.bmp");
 
-    state->hero_bitmaps[1].head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_back_head.bmp");
-    state->hero_bitmaps[1].cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_back_cape.bmp");
-    state->hero_bitmaps[1].torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_back_torso.bmp");
+    hero_bitmaps *bitmap = state->hero_bitmaps;
+    bitmap->head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_right_head.bmp");
+    bitmap->cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_right_cape.bmp");
+    bitmap->torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_right_torso.bmp");
+    bitmap->align_x = 72;
+    bitmap->align_y = 182;
+    bitmap++;
 
-    state->hero_bitmaps[2].head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_left_head.bmp");
-    state->hero_bitmaps[2].cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_left_cape.bmp");
-    state->hero_bitmaps[2].torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_left_torso.bmp");
 
-    state->hero_bitmaps[3].head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_head.bmp");
-    state->hero_bitmaps[3].cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_cape.bmp");
-    state->hero_bitmaps[3].torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_torso.bmp");
+    bitmap->head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_back_head.bmp");
+    bitmap->cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_back_cape.bmp");
+    bitmap->torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_back_torso.bmp");
+    bitmap->align_x = 72;
+    bitmap->align_y = 182;
+    bitmap++;
+
+    bitmap->head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_left_head.bmp");
+    bitmap->cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_left_cape.bmp");
+    bitmap->torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_left_torso.bmp");
+    bitmap->align_x = 72;
+    bitmap->align_y = 182;
+    bitmap++;
+
+    bitmap->head = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_head.bmp");
+    bitmap->cape = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_cape.bmp");
+    bitmap->torso = DEBUG_load_bmp(thread, memory->debug_platform_read_entire_file, "bmp/test_hero_front_torso.bmp");
+    bitmap->align_x = 72;
+    bitmap->align_y = 182;
+    bitmap++;
+
 
     memory->is_initialized = true;
     state->player_position.abs_tile_x = 3;
@@ -478,19 +498,17 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   real32 player_r = 0.6f;
   real32 player_g = 1.0f;
   real32 player_b = 0.5f;
+  real32 player_ground_point_x = screen_center_x;
+  real32 player_ground_point_y = screen_center_y;
   tile_map_position pos = state->player_position;
-  real32 player_left =
-    screen_center_x
-    - 0.5f*player_width*meters_to_pixels;
-  real32 player_top =
-    screen_center_y
-    - player_height*meters_to_pixels;
+  real32 player_left = player_ground_point_x - 0.5f*player_width*meters_to_pixels;
+  real32 player_top = player_ground_point_y - player_height*meters_to_pixels;
 
   uint32 facing_direction = 3;
   hero_bitmaps hero = state->hero_bitmaps[state->hero_facing_direction];
-  draw_bitmap(buffer, &hero.torso, player_left, player_top);
-  draw_bitmap(buffer, &hero.cape, player_left, player_top);
-  draw_bitmap(buffer, &hero.head, player_left, player_top);
+  draw_bitmap(buffer, &hero.torso, player_ground_point_x, player_ground_point_y, hero.align_x, hero.align_y);
+  draw_bitmap(buffer, &hero.cape, player_ground_point_x, player_ground_point_y, hero.align_x, hero.align_y);
+  draw_bitmap(buffer, &hero.head, player_ground_point_x, player_ground_point_y, hero.align_x, hero.align_y);
 
 }
 
