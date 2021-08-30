@@ -165,18 +165,21 @@ internal FILETIME win32_get_last_write_time(const char *filename) {
   return last_write_time;
 }
 
-internal win32_game_code win32_load_game_code(const char *dll_path, const char *temp_dll_path) {
+internal win32_game_code win32_load_game_code(const char *dll_path, const char *temp_dll_path, const char *lock_file_path) {
   win32_game_code result = {};
   result.last_write_time = win32_get_last_write_time(dll_path);
 
-  bool32 is_copied = CopyFile(dll_path, temp_dll_path, FALSE);
+  WIN32_FILE_ATTRIBUTE_DATA lock_file;
+  if (!GetFileAttributesEx(lock_file_path, GetFileExInfoStandard, &lock_file)) {
+    bool32 is_copied = CopyFile(dll_path, temp_dll_path, FALSE);
 
-  if (is_copied) {
-    result.game_code_dll = LoadLibrary(temp_dll_path);
-    if (result.game_code_dll) {
-      result.game_update_and_render = (game_update_and_render*)GetProcAddress(result.game_code_dll, "game_update_and_render_imp");
-      result.game_get_sound_samples = (game_get_sound_samples*)GetProcAddress(result.game_code_dll, "game_get_sound_samples_imp");
-      result.is_valid = (result.game_update_and_render && result.game_get_sound_samples);
+    if (is_copied) {
+      result.game_code_dll = LoadLibrary(temp_dll_path);
+      if (result.game_code_dll) {
+        result.game_update_and_render = (game_update_and_render*)GetProcAddress(result.game_code_dll, "game_update_and_render_imp");
+        result.game_get_sound_samples = (game_get_sound_samples*)GetProcAddress(result.game_code_dll, "game_get_sound_samples_imp");
+        result.is_valid = (result.game_update_and_render && result.game_get_sound_samples);
+      }
     }
   }
 
@@ -732,8 +735,12 @@ int CALLBACK WinMain(HINSTANCE instance,
   win32_get_exe_filename(&win32_state);
   char dll_path[WIN32_STATE_FILE_NAME_COUNT];
   win32_build_exe_path_filename(&win32_state, "game.dll", sizeof(dll_path), dll_path);
+
   char temp_dll_path[WIN32_STATE_FILE_NAME_COUNT];
   win32_build_exe_path_filename(&win32_state, "game_temp.dll", sizeof(temp_dll_path), temp_dll_path);
+
+  char lock_path[WIN32_STATE_FILE_NAME_COUNT];
+  win32_build_exe_path_filename(&win32_state, "lock.temp", sizeof(temp_dll_path), temp_dll_path);
 
   LARGE_INTEGER global_perf_counter_frequencyResult;
   QueryPerformanceFrequency(&global_perf_counter_frequencyResult);
@@ -851,7 +858,7 @@ int CALLBACK WinMain(HINSTANCE instance,
         bool32 sound_is_valid = false;
         LARGE_INTEGER flip_wall_clock = win32_get_wall_clock();
 
-        win32_game_code game_code = win32_load_game_code(dll_path, temp_dll_path);
+        win32_game_code game_code = win32_load_game_code(dll_path, temp_dll_path, lock_path);
 
         Running = true;
 
@@ -859,7 +866,7 @@ int CALLBACK WinMain(HINSTANCE instance,
           FILETIME new_dll_write_time = win32_get_last_write_time(dll_path);
           if (CompareFileTime(&new_dll_write_time, &game_code.last_write_time) != 0) {
             win32_unload_game_code(&game_code);
-            game_code = win32_load_game_code(dll_path, temp_dll_path);
+            game_code = win32_load_game_code(dll_path, temp_dll_path, lock_path);
           }
 
 

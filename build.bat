@@ -10,6 +10,8 @@ IF NOT EXIST build mkdir build
 pushd build
 del *.pdb > NUL 2> NUL
 REM Optimization switches /O2 /Oi /fp:fast
+echo WAITING FOR PDB > lock.temp
 cl %CommonCompilerFlags%  ../src/game.cpp -Fmwin32_game.map /LD /link -incremental:no /EXPORT:game_update_and_render_imp /EXPORT:game_get_sound_samples_imp /PDB:game_%CurrentDateTime%.pdb
+del lock.temp
 cl %CommonCompilerFlags%  ../src/win32_game.cpp -Fmwin32_game.map /link %CommonLinkerFlags%
 popd
