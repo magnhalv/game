@@ -120,3 +120,17 @@ inline tile_map_position recanonicalize_position(tile_map *tile_map, tile_map_po
   recanonicalize_coord(tile_map, &result.abs_tile_y, &result.offset_y);
   return result;
 }
+
+tile_map_difference subtract(tile_map *tile_map, tile_map_position *a, tile_map_position *b) {
+  tile_map_difference result;
+
+  real32 d_tile_x = (real32)a->abs_tile_x - (real32)b->abs_tile_x;
+  real32 d_tile_y = (real32)a->abs_tile_y - (real32)b->abs_tile_y;
+  real32 d_tile_z = (real32)a->abs_tile_z - (real32)b->abs_tile_z;
+
+  result.dx = (tile_map->tile_side_in_meters*d_tile_x) + (a->offset_x - b->offset_x);
+  result.dy = (tile_map->tile_side_in_meters*d_tile_y) + (a->offset_y - b->offset_y);
+  // TODO: THink about z
+  result.dz = tile_map->tile_side_in_meters*d_tile_z;
+  return result;
+}

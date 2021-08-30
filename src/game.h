@@ -218,6 +218,8 @@ struct hero_bitmaps {
 
 struct game_state {
   world *world;
+
+  tile_map_position camera_position;
   tile_map_position player_position;
   memory_arena world_arena;
 

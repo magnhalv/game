@@ -70,14 +70,18 @@ internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap,
   int32 max_x = round_real32_to_int32(real_x + (real32)bitmap->width);
   int32 max_y = round_real32_to_int32(real_y + (real32)bitmap->height);
 
+  int32 source_offset_x = 0;
   if (min_x < 0) {
+    source_offset_x = -min_x;
     min_x = 0;
   }
   if (max_x > buffer->width) {
     max_x = buffer->width;
   }
 
+  int32 source_offset_y = 0;
   if (min_y < 0) {
+    source_offset_y = -min_y-1;
     min_y = 0;
   }
   if (max_y > buffer->height) {
@@ -86,6 +90,7 @@ internal void draw_bitmap(game_offscreen_buffer *buffer, loaded_bitmap *bitmap,
 
   // source row needs to be changed due to clipping
   uint32 *source_row = bitmap->pixels + (bitmap->width*(bitmap->height-1));
+  source_row += (bitmap->width*(-source_offset_y)) + source_offset_x;
   uint8 *dest_row = ((uint8*)buffer->memory + min_y*buffer->pitch + min_x*buffer->bytes_per_pixel);
   for (int y = min_y; y < max_y; y++) {
 
@@ -235,6 +240,10 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     bitmap->align_x = 72;
     bitmap->align_y = 182;
     bitmap++;
+
+
+    state->camera_position.abs_tile_x = 17/2;
+    state->camera_position.abs_tile_y = 9/2;
 
 
     memory->is_initialized = true;
@@ -448,7 +457,27 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
         state->player_position = new_player_pos;
       }
+
+      tile_map_difference diff = subtract(tile_map, &state->player_position, &state->camera_position);
+      if (diff.dx > 9.0f*tile_map->tile_side_in_meters) {
+        state->camera_position.abs_tile_x += 17;
+      }
+
+      if (diff.dx < -9.0f*tile_map->tile_side_in_meters) {
+        state->camera_position.abs_tile_x -= 17;
+      }
+
+      if (diff.dy > 5.0f*tile_map->tile_side_in_meters) {
+        state->camera_position.abs_tile_y += 9;
+      }
+
+      if (diff.dy < -5.0f*tile_map->tile_side_in_meters) {
+        state->camera_position.abs_tile_y -= 9;
+      }
+
+      state->camera_position.abs_tile_z = state->player_position.abs_tile_z;
     }
+
   }
 
   //Todo: Maybe use
@@ -463,12 +492,12 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   for (int32 rel_row = -10; rel_row < 10; rel_row++) {
     for (int32 rel_column = -20; rel_column < 20; rel_column++) {
-      tile_map_position player_pos = state->player_position;
+      tile_map_position camera_pos = state->camera_position;
 
-      uint32 column = player_pos.abs_tile_x + rel_column;
-      uint32 row = player_pos.abs_tile_y + rel_row;
+      uint32 column = camera_pos.abs_tile_x + rel_column;
+      uint32 row = camera_pos.abs_tile_y + rel_row;
 
-      uint32 tile_value = get_tile_value(tile_map, column, row, player_pos.abs_tile_z);
+      uint32 tile_value = get_tile_value(tile_map, column, row, camera_pos.abs_tile_z);
       if (tile_value > 1) {
         real32 gray = 0.5f;
         if (tile_value == WALL) {
@@ -479,12 +508,12 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
           gray = 0.1f;
         }
 
-        if ((column == state->player_position.abs_tile_x) && (row == state->player_position.abs_tile_y)) {
+        if ((column == state->camera_position.abs_tile_x) && (row == state->camera_position.abs_tile_y)) {
           gray = 0.3f;
         }
 
-        real32 cen_x = screen_center_x - state->player_position.offset_x*meters_to_pixels + ((real32)rel_column * tile_side_in_pixels);
-        real32 cen_y = screen_center_y + state->player_position.offset_y*meters_to_pixels - ((real32)rel_row * tile_side_in_pixels);
+        real32 cen_x = screen_center_x - state->camera_position.offset_x*meters_to_pixels + ((real32)rel_column * tile_side_in_pixels);
+        real32 cen_y = screen_center_y + state->camera_position.offset_y*meters_to_pixels - ((real32)rel_row * tile_side_in_pixels);
         real32 min_x = cen_x - 0.5f*tile_side_in_pixels;
         real32 min_y = cen_y - 0.5f*tile_side_in_pixels;
         real32 max_x = cen_x + 0.5f*tile_side_in_pixels;
@@ -495,11 +524,13 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   }
 
   // DRAW Player
+  tile_map_difference diff = subtract(tile_map, &state->player_position, &state->camera_position);
+
   real32 player_r = 0.6f;
   real32 player_g = 1.0f;
   real32 player_b = 0.5f;
-  real32 player_ground_point_x = screen_center_x;
-  real32 player_ground_point_y = screen_center_y;
+  real32 player_ground_point_x = screen_center_x + meters_to_pixels*diff.dx;
+  real32 player_ground_point_y = screen_center_y - meters_to_pixels*diff.dy;
   tile_map_position pos = state->player_position;
   real32 player_left = player_ground_point_x - 0.5f*player_width*meters_to_pixels;
   real32 player_top = player_ground_point_y - player_height*meters_to_pixels;

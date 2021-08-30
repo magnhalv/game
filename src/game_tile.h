@@ -5,6 +5,12 @@
 #define STAIRS_DOWN 3
 #define STAIRS_UP 4
 
+struct tile_map_difference {
+  real32 dx;
+  real32 dy;
+  real32 dz;
+};
+
 struct tile_map_position {
 
   uint32 abs_tile_x;
