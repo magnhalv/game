@@ -45,6 +45,33 @@ global_variable LPDIRECTSOUNDBUFFER globalSecondaryBuffer;
 global_variable win32_sound_output global_sound_output = {};
 global_variable int64 global_perf_counter_frequency;
 global_variable bool32 global_pause = false;
+global_variable bool32 global_debug_show_cursor;
+global_variable WINDOWPLACEMENT global_window_position = {sizeof(global_window_position)};
+
+// Note: Source: https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
+internal void toggle_fullscreen(HWND window)
+{
+  DWORD style = GetWindowLong(window, GWL_STYLE);
+  if (style & WS_OVERLAPPEDWINDOW) {
+    MONITORINFO monitor_info = { sizeof(monitor_info) };
+    if (GetWindowPlacement(window, &global_window_position) &&
+        GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
+      SetWindowLong(window, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
+      SetWindowPos(window, HWND_TOP,
+                   monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
+                   monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                   monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+  }
+  else {
+    SetWindowLong(window, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+    SetWindowPlacement(window, &global_window_position);
+    SetWindowPos(window, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                 SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  }
+}
 
 #define AUDIO_DEBUG 0
 
@@ -337,6 +364,16 @@ internal LRESULT CALLBACK WindowProcCallback(HWND window,
   } break;
   case WM_CLOSE:
     Running = false;
+  case WM_SETCURSOR:
+    {
+      if (global_debug_show_cursor) {
+        result = DefWindowProc(window, message, wParam, lParam);
+      }
+      else {
+        SetCursor(0);
+      }
+
+    } break;
   case WM_DESTROY:
     Running = false;
     break;
@@ -609,7 +646,12 @@ internal void win32_process_pending_messages(win32_state *win32_state, game_cont
 
           }
 #endif
-
+          bool32 alt_key_was_down = (message.lParam & (1 << 29));
+          if ((vk_code == VK_RETURN) && alt_key_was_down && is_down) {
+            if (message.hwnd) {
+              toggle_fullscreen(message.hwnd);
+            }
+          }
         }
       }
       break;
@@ -751,18 +793,24 @@ int CALLBACK WinMain(HINSTANCE instance,
   bool32 is_sleep_granular = timeBeginPeriod(desired_scheduler_ms) == TIMERR_NOERROR;
   is_sleep_granular = false;
 
-  WNDCLASS windowClass = {};
+  WNDCLASS window_class = {};
   win32_loadXinput();
-  windowClass.style = CS_HREDRAW|CS_VREDRAW;
-  windowClass.lpfnWndProc = WindowProcCallback;
-  windowClass.hInstance = instance;
-  //  WindowClass.hIcon;
-  windowClass.lpszClassName = "GameWindowClass";
+  window_class.style = CS_HREDRAW|CS_VREDRAW;
+  window_class.lpfnWndProc = WindowProcCallback;
+  window_class.hInstance = instance;
+  window_class.lpszClassName = "GameWindowClass";
+  // Note: If we want to control the cursor
+#if GAME_INTERNAL
+  global_debug_show_cursor = true;
+#else
+  global_debug_show_cursor = false;
+#endif
+  window_class.hCursor = LoadCursor(0, IDC_ARROW);
 
-  if (RegisterClass(&windowClass)) {
+  if (RegisterClass(&window_class)) {
     HWND window =
       CreateWindowExA(0,
-                      windowClass.lpszClassName,
+                      window_class.lpszClassName,
                       "Game",
                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
                       CW_USEDEFAULT,
