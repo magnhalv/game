@@ -1,13 +1,11 @@
 #if !defined(GAME_MATH_H)
 
-struct v2 {
+union v2 {
   // Makes it possible to both access as x and y, and as an array.
-  union {
-    struct {
-      real32 x, y;
-    };
-    real32 E[2];
+  struct {
+    real32 x, y;
   };
+  real32 E[2];
 };
 
 
@@ -53,6 +51,16 @@ inline v2 operator-(v2 a, v2 b) {
 
   result.x = a.x - b.x;
   result.y = a.y - b.y;
+  return result;
+}
+
+inline real32 square(real32 a) {
+  real32 result = a*a;
+  return result;
+}
+
+inline real32 dot(v2 a, v2 b) {
+  real32 result = a.x*b.x + a.y*b.y;
   return result;
 }
 

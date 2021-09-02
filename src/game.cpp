@@ -402,36 +402,48 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
     }
     else {
-      real32 velocity = 5.0f * input->dt;
-      v2 d_player = {0};
+      v2 dd_player = {};
+
       if (controller->move_up.ended_down) {
-        d_player.y = 1.0f;
+        dd_player.y = 1.0f;
         state->hero_facing_direction = 1;
       }
       if (controller->move_down.ended_down) {
-        d_player.y = -1.0f;
+        dd_player.y = -1.0f;
         state->hero_facing_direction = 3;
       }
       if (controller->move_left.ended_down) {
-        d_player.x = -1.0f;
+        dd_player.x = -1.0f;
         state->hero_facing_direction = 2;
       }
       if (controller->move_right.ended_down) {
-        d_player.x = 1.0f;
+        dd_player.x = 1.0f;
         state->hero_facing_direction = 0;
       }
 
+      real32 player_speed = 20.0f; // m/s^2
       if (controller->action_up.ended_down) {
-        velocity *= 5;
+        player_speed = 50.0f;
       }
 
-      if (d_player.x > 0 && d_player.y > 0) {
-        d_player *= 0.707106781187f;
+      if (dd_player.x > 0 && dd_player.y > 0) {
+        dd_player *= 0.707106781187f;
       }
+
+      dd_player *= player_speed;
+      // p' = 0.5at^2 + vt + p
+      // v' = at + v
+      // a = a
+      dd_player += -1.5f*state->d_player_position;
 
       tile_map_position new_player_pos = {};
       new_player_pos = state->player_position;
-      new_player_pos.offset = state->player_position.offset + (d_player*velocity);
+      new_player_pos.offset = (0.5f*dd_player*square(input->dt))
+        + (state->d_player_position*input->dt)
+        + new_player_pos.offset;
+
+      state->d_player_position = dd_player*input->dt + state->d_player_position;
+
       new_player_pos = recanonicalize_position(tile_map, new_player_pos);
 
       tile_map_position new_player_left_pos = new_player_pos;
@@ -442,11 +454,24 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       new_player_right_pos.offset.x += 0.5f*player_width;
       new_player_right_pos = recanonicalize_position(tile_map, new_player_right_pos);
 
-      if (
-          is_tile_map_point_empty(tile_map, new_player_pos) &&
-          is_tile_map_point_empty(tile_map, new_player_left_pos) &&
-          is_tile_map_point_empty(tile_map, new_player_right_pos)
-          ) {
+      bool32 collided = false;
+      tile_map_position collision_position = {};
+      if (!is_tile_map_point_empty(tile_map, new_player_pos)) {
+        collided = true;
+        collision_position = new_player_pos;
+      }
+
+      if (!is_tile_map_point_empty(tile_map, new_player_left_pos)) {
+        collided = true;
+        collision_position = new_player_left_pos;
+      }
+
+      if (!is_tile_map_point_empty(tile_map, new_player_right_pos)) {
+        collided = true;
+        collision_position = new_player_right_pos;
+      }
+
+      if (!collided) {
         if (!are_on_same_tile(&state->player_position, &new_player_pos)) {
           uint32 new_tile_value = get_tile_value(tile_map, new_player_pos);
 
@@ -459,6 +484,25 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
         }
 
         state->player_position = new_player_pos;
+      }
+      else {
+        v2 r = {};
+
+        if (collision_position.abs_tile_x < state->player_position.abs_tile_x) {
+          r = v2{1, 0};
+        }
+        if (collision_position.abs_tile_x > state->player_position.abs_tile_x) {
+          r = v2{-1, 0};
+        }
+        if (collision_position.abs_tile_y < state->player_position.abs_tile_y) {
+          r = v2{0, 1};
+        }
+        if (collision_position.abs_tile_y > state->player_position.abs_tile_y) {
+          r = v2{0, -1};
+        }
+
+
+        state->d_player_position = state->d_player_position - dot(state->d_player_position, r)*r;
       }
 
       tile_map_difference diff = subtract(tile_map, &state->player_position, &state->camera_position);

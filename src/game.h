@@ -221,6 +221,8 @@ struct game_state {
 
   tile_map_position camera_position;
   tile_map_position player_position;
+  v2 d_player_position;
+
   memory_arena world_arena;
 
   loaded_bitmap backdrop;
