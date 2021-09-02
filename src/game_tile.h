@@ -1,13 +1,14 @@
 #if !defined(GAME_TILE_H)
 
+#include "game_math.h"
+
 #define WALKABLE 1
 #define WALL 2
 #define STAIRS_DOWN 3
 #define STAIRS_UP 4
 
 struct tile_map_difference {
-  real32 dx;
-  real32 dy;
+  v2 dxy;
   real32 dz;
 };
 
@@ -18,8 +19,7 @@ struct tile_map_position {
   uint32 abs_tile_z;
 
   // NOTE: Tile offsets from center
-  real32 offset_x;
-  real32 offset_y;
+  v2 offset;
 };
 
 struct tile_chunk {

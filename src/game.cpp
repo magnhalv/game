@@ -1,6 +1,7 @@
 #include "game.h"
 #include "game_random.h"
 #include "game_tile.cpp"
+#include "game_math.h"
 
 /** internal void GameOutputSound(game_sound_output_buffer *sound_buffer, game_state *state) {
   int16 tone_volume = 3000;
@@ -24,12 +25,12 @@
 
 
 internal void draw_rectangle(game_offscreen_buffer *buffer,
-                             real32 real_min_x, real32 real_min_y, real32 real_max_x, real32 real_max_y,
+                             v2 v_min, v2 v_max,
                              real32 r, real32 g, real32 b) {
-  int32 min_x = round_real32_to_int32(real_min_x);
-  int32 max_x = round_real32_to_int32(real_max_x);
-  int32 min_y = round_real32_to_int32(real_min_y);
-  int32 max_y = round_real32_to_int32(real_max_y);
+  int32 min_x = round_real32_to_int32(v_min.x);
+  int32 max_x = round_real32_to_int32(v_max.x);
+  int32 min_y = round_real32_to_int32(v_min.y);
+  int32 max_y = round_real32_to_int32(v_max.y);
   if (min_x < 0) {
     min_x = 0;
   }
@@ -249,8 +250,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     memory->is_initialized = true;
     state->player_position.abs_tile_x = 3;
     state->player_position.abs_tile_y = 3;
-    state->player_position.offset_x = 5.0f;
-    state->player_position.offset_y = 5.0f;
+    state->player_position.offset.x = 5.0f;
+    state->player_position.offset.y = 5.0f;
 
     initialize_arena(&state->world_arena,
                      memory->permanent_storage_size - sizeof(game_state),
@@ -402,22 +403,21 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
     }
     else {
       real32 velocity = 5.0f * input->dt;
-      real32 player_dx = 0.0f;
-      real32 player_dy = 0.0f;
+      v2 d_player = {0};
       if (controller->move_up.ended_down) {
-        player_dy = 1.0f;
+        d_player.y = 1.0f;
         state->hero_facing_direction = 1;
       }
       if (controller->move_down.ended_down) {
-        player_dy = -1.0f;
+        d_player.y = -1.0f;
         state->hero_facing_direction = 3;
       }
       if (controller->move_left.ended_down) {
-        player_dx = -1.0f;
+        d_player.x = -1.0f;
         state->hero_facing_direction = 2;
       }
       if (controller->move_right.ended_down) {
-        player_dx = 1.0f;
+        d_player.x = 1.0f;
         state->hero_facing_direction = 0;
       }
 
@@ -425,18 +425,21 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
         velocity *= 5;
       }
 
+      if (d_player.x > 0 && d_player.y > 0) {
+        d_player *= 0.707106781187f;
+      }
+
       tile_map_position new_player_pos = {};
       new_player_pos = state->player_position;
-      new_player_pos.offset_x = state->player_position.offset_x + (player_dx*velocity);
-      new_player_pos.offset_y = state->player_position.offset_y + (player_dy*velocity);
+      new_player_pos.offset = state->player_position.offset + (d_player*velocity);
       new_player_pos = recanonicalize_position(tile_map, new_player_pos);
 
       tile_map_position new_player_left_pos = new_player_pos;
-      new_player_left_pos.offset_x -= 0.5f*player_width;
+      new_player_left_pos.offset.x -= 0.5f*player_width;
       new_player_left_pos = recanonicalize_position(tile_map, new_player_left_pos);
 
       tile_map_position new_player_right_pos = new_player_pos;
-      new_player_right_pos.offset_x += 0.5f*player_width;
+      new_player_right_pos.offset.x += 0.5f*player_width;
       new_player_right_pos = recanonicalize_position(tile_map, new_player_right_pos);
 
       if (
@@ -459,19 +462,19 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
       }
 
       tile_map_difference diff = subtract(tile_map, &state->player_position, &state->camera_position);
-      if (diff.dx > 9.0f*tile_map->tile_side_in_meters) {
+      if (diff.dxy.x > 9.0f*tile_map->tile_side_in_meters) {
         state->camera_position.abs_tile_x += 17;
       }
 
-      if (diff.dx < -9.0f*tile_map->tile_side_in_meters) {
+      if (diff.dxy.x < -9.0f*tile_map->tile_side_in_meters) {
         state->camera_position.abs_tile_x -= 17;
       }
 
-      if (diff.dy > 5.0f*tile_map->tile_side_in_meters) {
+      if (diff.dxy.y > 5.0f*tile_map->tile_side_in_meters) {
         state->camera_position.abs_tile_y += 9;
       }
 
-      if (diff.dy < -5.0f*tile_map->tile_side_in_meters) {
+      if (diff.dxy.y < -5.0f*tile_map->tile_side_in_meters) {
         state->camera_position.abs_tile_y -= 9;
       }
 
@@ -480,10 +483,9 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
 
   }
 
-  //Todo: Maybe use
-  //tile_chunk *tile_chunk = get_tile_chunk(tile_map, state->player_position.tile_chunk_x, state->player_position.tile_chunk_y);
-
-  draw_rectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 0.9f, 0.5f, 1.0f);
+  v2 bottom_left = {0.0f, 0.0f};
+  v2 top_right = {(real32)buffer->width, (real32)buffer->height};
+  draw_rectangle(buffer, bottom_left, top_right, 0.9f, 0.5f, 1.0f);
 
   draw_bitmap(buffer, &state->backdrop, 0, 0);
 
@@ -512,13 +514,14 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
           gray = 0.3f;
         }
 
-        real32 cen_x = screen_center_x - state->camera_position.offset_x*meters_to_pixels + ((real32)rel_column * tile_side_in_pixels);
-        real32 cen_y = screen_center_y + state->camera_position.offset_y*meters_to_pixels - ((real32)rel_row * tile_side_in_pixels);
-        real32 min_x = cen_x - 0.5f*tile_side_in_pixels;
-        real32 min_y = cen_y - 0.5f*tile_side_in_pixels;
-        real32 max_x = cen_x + 0.5f*tile_side_in_pixels;
-        real32 max_y = cen_y + 0.5f*tile_side_in_pixels;
-        draw_rectangle(buffer, min_x, min_y, max_x, max_y, gray, gray, gray);
+        v2 cen = {
+          screen_center_x - state->camera_position.offset.x*meters_to_pixels + ((real32)rel_column * tile_side_in_pixels),
+          screen_center_y + state->camera_position.offset.y*meters_to_pixels - ((real32)rel_row * tile_side_in_pixels)
+        };
+        v2 tile_side = {0.5f*tile_side_in_pixels, 0.5f*tile_side_in_pixels};
+        v2 min = cen - tile_side;
+        v2 max = cen + tile_side;
+        draw_rectangle(buffer, min, max, gray, gray, gray);
       }
     }
   }
@@ -526,16 +529,9 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_and_render_imp)
   // DRAW Player
   tile_map_difference diff = subtract(tile_map, &state->player_position, &state->camera_position);
 
-  real32 player_r = 0.6f;
-  real32 player_g = 1.0f;
-  real32 player_b = 0.5f;
-  real32 player_ground_point_x = screen_center_x + meters_to_pixels*diff.dx;
-  real32 player_ground_point_y = screen_center_y - meters_to_pixels*diff.dy;
-  tile_map_position pos = state->player_position;
-  real32 player_left = player_ground_point_x - 0.5f*player_width*meters_to_pixels;
-  real32 player_top = player_ground_point_y - player_height*meters_to_pixels;
+  real32 player_ground_point_x = screen_center_x + meters_to_pixels*diff.dxy.x;
+  real32 player_ground_point_y = screen_center_y - meters_to_pixels*diff.dxy.y;
 
-  uint32 facing_direction = 3;
   hero_bitmaps hero = state->hero_bitmaps[state->hero_facing_direction];
   draw_bitmap(buffer, &hero.torso, player_ground_point_x, player_ground_point_y, hero.align_x, hero.align_y);
   draw_bitmap(buffer, &hero.cape, player_ground_point_x, player_ground_point_y, hero.align_x, hero.align_y);
